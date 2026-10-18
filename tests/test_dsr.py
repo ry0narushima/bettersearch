@@ -725,6 +725,20 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(dsr.render_template("{{a}}", {"a": "{{b}}"}), "{{b}}")
 
 
+class ExampleTests(unittest.TestCase):
+    def test_example_spec_renders_cleanly(self):
+        spec = json.loads((ROOT / "examples" / "example-spec.json").read_text(encoding="utf-8"))
+        page, warnings = dsr.build_report(spec)
+        self.assertEqual(warnings, [])
+        p = check_html(self, page)
+        self.assertEqual(sum(1 for t, _ in p.tags if t == "svg"), len(spec["numbers"]["charts"]))
+
+    def test_committed_example_report_is_valid(self):
+        page = (ROOT / "examples" / "example-report.html").read_text(encoding="utf-8")
+        check_html(self, page)
+        self.assertNotIn("cite missing", page)
+
+
 class FormatTests(unittest.TestCase):
     def test_nice_ticks(self):
         self.assertEqual(dsr.nice_ticks(0, 17.3), [0, 5, 10, 15, 20])

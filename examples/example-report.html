@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="Yes. More than 17 million electric cars were sold in 2024, over 1 in 5 new cars worldwide . China made almost two thirds of those sales, while Europe stayed flat .">
+<meta name="generator" content="deepseek-research dsr.py 1.0.0">
+<title>Is the electric car market still growing?</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --card: #ffffff;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #6f6d68;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --accent: #2a78d6;
+  --accent-ink: #1c5cab;
+  --accent-wash: rgba(42, 120, 214, 0.09);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --good: #0ca30c; --warn: #fab219; --bad: #d03b3b; --none: #898781;
+  --radius: 12px;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --card: #1a1a19;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #9c9a93;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --accent: #3987e5;
+    --accent-ink: #86b6ef;
+    --accent-wash: rgba(57, 135, 229, 0.16);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 17px/1.65 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent-ink); text-underline-offset: 0.15em; }
+main { max-width: 760px; margin: 0 auto; padding: 56px 24px 80px; }
+section { margin-top: 64px; }
+h1, h2, h3 { line-height: 1.2; letter-spacing: -0.015em; margin: 0; }
+h1 { font-size: clamp(30px, 6vw, 44px); font-weight: 750; letter-spacing: -0.025em; }
+h2 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+h3 { font-size: 19px; font-weight: 650; }
+p { margin: 0 0 16px; }
+.kicker {
+  font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 14px;
+}
+.lede { color: var(--ink-2); margin-bottom: 24px; }
+
+/* Hero */
+.notice {
+  font-size: 14px; color: var(--ink-2); background: var(--accent-wash);
+  border-radius: 8px; padding: 10px 14px; margin-bottom: 28px;
+}
+.eyebrow { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; color: var(--muted); margin-bottom: 16px; }
+.eyebrow .mode { color: var(--accent-ink); font-weight: 600; }
+.question { font-size: 18px; color: var(--ink-2); margin: 16px 0 0; }
+.tldr {
+  margin: 28px 0 0; padding: 20px 22px; background: var(--card);
+  border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius);
+  font-size: 20px; line-height: 1.5; font-weight: 500;
+}
+.tldr .label { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ink); margin-bottom: 6px; }
+.counts { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 22px; }
+.count b { display: block; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+.count span { font-size: 13px; color: var(--muted); }
+
+/* Takeaways */
+.takeaways { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 12px; counter-reset: tk; }
+.takeaways li {
+  counter-increment: tk; position: relative; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px 18px 62px;
+}
+.takeaways li::before {
+  content: counter(tk); position: absolute; left: 18px; top: 17px; width: 28px; height: 28px;
+  border-radius: 50%; background: var(--accent-wash); color: var(--accent-ink);
+  font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center;
+}
+
+/* Citations */
+.cite {
+  display: inline-block; min-width: 1.6em; padding: 0 0.42em; margin-left: 2px;
+  font-size: 0.7em; font-weight: 700; line-height: 1.6; text-align: center; vertical-align: 0.2em;
+  border-radius: 999px; background: var(--accent-wash); color: var(--accent-ink); text-decoration: none;
+}
+.cite:hover, .cite:focus-visible { background: var(--accent); color: #fff; }
+.cite.missing { background: transparent; color: var(--muted); }
+
+/* Numbers */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 20px; }
+.stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+.stat .label { font-size: 14px; color: var(--ink-2); }
+.stat .value { font-size: 34px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; margin: 6px 0 4px; }
+.stat .value small { font-size: 16px; font-weight: 600; color: var(--ink-2); margin-left: 3px; }
+.stat .note { font-size: 13px; color: var(--muted); line-height: 1.45; }
+.chart-card { margin: 16px 0 0; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 20px 14px; }
+.chart-card h3 { margin-bottom: 2px; }
+.chart-card .sub { font-size: 14px; color: var(--muted); margin: 0 0 12px; }
+.chart-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.chart { display: block; width: 100%; height: auto; min-width: 460px; font-family: var(--sans); }
+.chart .grid { stroke: var(--grid); stroke-width: 1; }
+.chart .axis { stroke: var(--axis); stroke-width: 1; }
+.chart .tick { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.chart .lbl { fill: var(--ink-2); font-size: 13px; }
+.chart .val { fill: var(--ink); font-size: 13px; font-weight: 600; }
+.chart .big { fill: var(--ink); font-size: 26px; font-weight: 700; }
+.chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .dot { stroke: var(--card); stroke-width: 2; }
+.chart .hit { fill: transparent; }
+.chart g.pt:hover .mark { opacity: 0.8; }
+.chart g.pt:hover .hit { fill: var(--accent-wash); }
+.chart .ring { fill: none; stroke: var(--card); stroke-width: 2; }
+.f1 { fill: var(--s1); } .f2 { fill: var(--s2); } .f3 { fill: var(--s3); } .f4 { fill: var(--s4); }
+.f5 { fill: var(--s5); } .f6 { fill: var(--s6); } .f7 { fill: var(--s7); } .f8 { fill: var(--s8); }
+.k1 { stroke: var(--s1); } .k2 { stroke: var(--s2); } .k3 { stroke: var(--s3); } .k4 { stroke: var(--s4); }
+.k5 { stroke: var(--s5); } .k6 { stroke: var(--s6); } .k7 { stroke: var(--s7); } .k8 { stroke: var(--s8); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; list-style: none; padding: 0; margin: 0 0 8px; font-size: 13px; color: var(--ink-2); }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.sw1 { background: var(--s1); } .sw2 { background: var(--s2); } .sw3 { background: var(--s3); } .sw4 { background: var(--s4); }
+.sw5 { background: var(--s5); } .sw6 { background: var(--s6); } .sw7 { background: var(--s7); } .sw8 { background: var(--s8); }
+.chart-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-top: 8px; }
+details.data summary { cursor: pointer; color: var(--accent-ink); }
+details.data table { border-collapse: collapse; margin-top: 8px; font-variant-numeric: tabular-nums; }
+details.data th, details.data td { text-align: left; padding: 3px 14px 3px 0; border-bottom: 1px solid var(--grid); font-size: 13px; }
+details.data td.num { text-align: right; }
+
+/* Sections */
+.section h2 + p { margin-top: 12px; }
+figure.img { margin: 24px 0; }
+figure.img img { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--grid); }
+figure.img figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+figure.img .credit { white-space: nowrap; }
+
+/* Confidence */
+.legend-status { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; color: var(--ink-2); margin: 12px 0 18px; }
+.tag {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-size: 12px; font-weight: 650; color: var(--ink-2);
+  border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px 1px 3px; background: var(--card);
+}
+.tag i {
+  font-style: normal; width: 16px; height: 16px; border-radius: 50%; color: #fff;
+  font-size: 10px; line-height: 16px; text-align: center; font-weight: 800;
+}
+.tag.verified i { background: var(--good); }
+.tag.single i { background: var(--warn); color: #0b0b0b; }
+.tag.conflicting i { background: var(--bad); }
+.tag.unconfirmed i { background: var(--none); }
+.claims { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--grid); }
+.claims li { padding: 14px 0; border-bottom: 1px solid var(--grid); display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: start; }
+.claims .note { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
+.unconfirmed { padding-left: 20px; }
+.unconfirmed li { margin-bottom: 10px; }
+.unconfirmed .note { display: block; font-size: 14px; color: var(--muted); }
+
+/* Sources */
+.sources { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 10px; }
+.source {
+  display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: start;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;
+  scroll-margin-top: 24px; transition: box-shadow 0.3s;
+}
+.source:target { box-shadow: 0 0 0 3px var(--accent); }
+.icon {
+  position: relative; width: 40px; height: 40px; border-radius: 10px; overflow: hidden;
+  background: var(--accent-wash); color: var(--accent-ink); font-weight: 700; font-size: 17px;
+  display: flex; align-items: center; justify-content: center;
+}
+.icon img { position: absolute; inset: 8px; width: 24px; height: 24px; background: var(--card); border-radius: 4px; }
+.source .num { font-size: 13px; font-weight: 700; color: var(--accent-ink); margin-right: 6px; }
+.source .title { font-weight: 600; line-height: 1.4; word-break: break-word; }
+.source .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--muted); margin-top: 4px; }
+.badge { font-size: 12px; font-weight: 650; border-radius: 6px; padding: 0 7px; border: 1px solid var(--border); color: var(--ink-2); }
+.badge.high { background: var(--accent-wash); color: var(--accent-ink); border-color: transparent; }
+
+footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--grid); font-size: 13px; color: var(--muted); }
+
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+  main { padding: 36px 18px 64px; }
+  section { margin-top: 48px; }
+  .tldr { font-size: 18px; }
+  .takeaways li { padding: 16px 16px 16px 54px; }
+  .takeaways li::before { left: 14px; }
+}
+@media print {
+  body { background: #fff; }
+  .chart-wrap { overflow: visible; }
+  details.data { display: none; }
+  a { color: inherit; }
+}
+</style>
+</head>
+<body>
+<main>
+<header><p class="notice">Example report. It shows what the skill produces. The figures follow public reports from mid-2025 (IEA Global EV Outlook 2025, BloombergNEF, ACEA), but this file was written by hand, not by a live run, so the header counts are illustrative. Check the sources before reusing a number.</p><div class="eyebrow"><span>Research report</span><span class="mode">Advanced mode</span><time datetime="2025-06-15">June 15, 2025</time></div><h1>Is the electric car market still growing?</h1><p class="question">Are electric car sales still growing worldwide, and where is the growth coming from?</p><p class="tldr"><span class="label">The short answer</span>Yes. More than 17 million electric cars were sold in 2024, over 1 in 5 new cars worldwide <a class="cite" href="#src-1" title="Global EV Outlook 2025">1</a>. China made almost two thirds of those sales, while Europe stayed flat <a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a>.</p><div class="counts"><div class="count"><b>14</b><span>searches</span></div><div class="count"><b>186</b><span>sources found</span></div><div class="count"><b>22</b><span>sources read</span></div><div class="count"><b>4</b><span>claims verified</span></div></div></header>
+<section id="takeaways"><div class="kicker">Key takeaways</div><h2>What you need to know</h2><ol class="takeaways"><li>Electric car sales passed 17 million in 2024. That is more than 1 in every 5 new cars sold.<a class="cite" href="#src-1" title="Global EV Outlook 2025">1</a><a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a></li><li>China is the engine. It sold over 11 million electric cars, almost half of all new cars sold there.<a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a></li><li>Europe stalled at about 3.2 million, and the United States grew a little, to about 1.6 million.<a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a></li><li>Batteries got much cheaper. Pack prices fell about 20% in 2024, the biggest drop since 2017.<a class="cite" href="#src-4" title="Lithium-ion battery pack prices see largest drop since 2017, falling to $115 per kilowatt-hour">4</a></li><li>The IEA expects more than 20 million sales in 2025, about 1 in 4 new cars.<a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a></li></ol></section>
+<section id="numbers"><div class="kicker">By the numbers</div><h2>The market in five numbers</h2><p class="lede">Sales have grown every year since 2020. The pace slowed in 2024, but growth did not stop <a class="cite" href="#src-1" title="Global EV Outlook 2025">1</a><a class="cite" href="#src-3" title="Global EV Outlook 2024: Trends in electric cars">3</a>.</p><div class="stats"><div class="stat"><div class="label">Electric cars sold in 2024</div><div class="value">17M<small>+</small></div><div class="note">Battery and plug-in hybrid cars<a class="cite" href="#src-1" title="Global EV Outlook 2025">1</a></div></div><div class="stat"><div class="label">Share of new cars sold</div><div class="value">20<small>%+</small></div><div class="note">Up from about 4% in 2020<a class="cite" href="#src-1" title="Global EV Outlook 2025">1</a><a class="cite" href="#src-3" title="Global EV Outlook 2024: Trends in electric cars">3</a></div></div><div class="stat"><div class="label">Sold in China</div><div class="value">11M<small>+</small></div><div class="note">Almost half of China&#x27;s car sales<a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a></div></div><div class="stat"><div class="label">Battery pack price</div><div class="value">$115<small>/kWh</small></div><div class="note">Average in 2024, down about 20%<a class="cite" href="#src-4" title="Lithium-ion battery pack prices see largest drop since 2017, falling to $115 per kilowatt-hour">4</a></div></div></div><figure class="chart-card"><h3>Electric car sales worldwide</h3><p class="sub">Millions of cars sold per year</p><div class="chart-wrap"><svg class="chart" viewBox="0 0 680 300" role="img" aria-label="Electric car sales worldwide" xmlns="http://www.w3.org/2000/svg"><line class="axis" x1="48" x2="672" y1="254" y2="254"/><text class="tick" x="40" y="258" text-anchor="end">0</text><line class="grid" x1="48" x2="672" y1="197" y2="197"/><text class="tick" x="40" y="201" text-anchor="end">5</text><line class="grid" x1="48" x2="672" y1="140" y2="140"/><text class="tick" x="40" y="144" text-anchor="end">10</text><line class="grid" x1="48" x2="672" y1="83" y2="83"/><text class="tick" x="40" y="87" text-anchor="end">15</text><line class="grid" x1="48" x2="672" y1="26" y2="26"/><text class="tick" x="40" y="30" text-anchor="end">20</text><g class="pt"><title>2020: 3M</title><rect class="hit" x="48" y="26" width="124.8" height="228"/><path class="mark f1" d="M98.4 254V223.8Q98.4 219.8 102.4 219.8H118.4Q122.4 219.8 122.4 223.8V254Z"/><text class="val" x="110.4" y="212.8" text-anchor="middle">3M</text><text class="lbl" x="110.4" y="274" text-anchor="middle">2020</text></g><g class="pt"><title>2021: 6.6M</title><rect class="hit" x="172.8" y="26" width="124.8" height="228"/><path class="mark f1" d="M223.2 254V182.8Q223.2 178.8 227.2 178.8H243.2Q247.2 178.8 247.2 182.8V254Z"/><text class="val" x="235.2" y="171.8" text-anchor="middle">6.6M</text><text class="lbl" x="235.2" y="274" text-anchor="middle">2021</text></g><g class="pt"><title>2022: 10.2M</title><rect class="hit" x="297.6" y="26" width="124.8" height="228"/><path class="mark f1" d="M348 254V141.7Q348 137.7 352 137.7H368Q372 137.7 372 141.7V254Z"/><text class="val" x="360" y="130.7" text-anchor="middle">10.2M</text><text class="lbl" x="360" y="274" text-anchor="middle">2022</text></g><g class="pt"><title>2023: 14M</title><rect class="hit" x="422.4" y="26" width="124.8" height="228"/><path class="mark f1" d="M472.8 254V98.4Q472.8 94.4 476.8 94.4H492.8Q496.8 94.4 496.8 98.4V254Z"/><text class="val" x="484.8" y="87.4" text-anchor="middle">14M</text><text class="lbl" x="484.8" y="274" text-anchor="middle">2023</text></g><g class="pt"><title>2024: 17.3M</title><rect class="hit" x="547.2" y="26" width="124.8" height="228"/><path class="mark f1" d="M597.6 254V60.8Q597.6 56.8 601.6 56.8H617.6Q621.6 56.8 621.6 60.8V254Z"/><text class="val" x="609.6" y="49.8" text-anchor="middle">17.3M</text><text class="lbl" x="609.6" y="274" text-anchor="middle">2024</text></g></svg></div><div class="chart-foot"><span>Rounded figures from the IEA Global EV Outlook<a class="cite" href="#src-1" title="Global EV Outlook 2025">1</a><a class="cite" href="#src-3" title="Global EV Outlook 2024: Trends in electric cars">3</a></span><details class="data"><summary>Show data</summary><table><tr><th></th><th>Electric car sales worldwide</th></tr><tr><td>2020</td><td class="num">3M</td></tr><tr><td>2021</td><td class="num">6.6M</td></tr><tr><td>2022</td><td class="num">10.2M</td></tr><tr><td>2023</td><td class="num">14M</td></tr><tr><td>2024</td><td class="num">17.3M</td></tr></table></details></div></figure><figure class="chart-card"><h3>Share of new cars that are electric</h3><p class="sub">Percent of new car sales</p><ul class="legend"><li><span class="swatch sw1"></span>China</li><li><span class="swatch sw2"></span>World</li><li><span class="swatch sw3"></span>United States</li></ul><div class="chart-wrap"><svg class="chart" viewBox="0 0 680 300" role="img" aria-label="Share of new cars that are electric" xmlns="http://www.w3.org/2000/svg"><line class="axis" x1="48" x2="616" y1="266" y2="266"/><text class="tick" x="40" y="270" text-anchor="end">0</text><line class="grid" x1="48" x2="616" y1="182.7" y2="182.7"/><text class="tick" x="40" y="186.7" text-anchor="end">20</text><line class="grid" x1="48" x2="616" y1="99.3" y2="99.3"/><text class="tick" x="40" y="103.3" text-anchor="end">40</text><line class="grid" x1="48" x2="616" y1="16" y2="16"/><text class="tick" x="40" y="20" text-anchor="end">60</text><text class="tick" x="48" y="290" text-anchor="middle">2020</text><text class="tick" x="190" y="290" text-anchor="middle">2021</text><text class="tick" x="332" y="290" text-anchor="middle">2022</text><text class="tick" x="474" y="290" text-anchor="middle">2023</text><text class="tick" x="616" y="290" text-anchor="middle">2024</text><path class="line k1" d="M48 241L190 199.3L332 145.2L474 107.7L616 66"/><g class="pt"><title>China, 2020: 6%</title><circle class="hit" cx="48" cy="241" r="11"/><circle class="mark dot f1" cx="48" cy="241" r="4"/></g><g class="pt"><title>China, 2021: 16%</title><circle class="hit" cx="190" cy="199.3" r="11"/><circle class="mark dot f1" cx="190" cy="199.3" r="4"/></g><g class="pt"><title>China, 2022: 29%</title><circle class="hit" cx="332" cy="145.2" r="11"/><circle class="mark dot f1" cx="332" cy="145.2" r="4"/></g><g class="pt"><title>China, 2023: 38%</title><circle class="hit" cx="474" cy="107.7" r="11"/><circle class="mark dot f1" cx="474" cy="107.7" r="4"/></g><g class="pt"><title>China, 2024: 48%</title><circle class="hit" cx="616" cy="66" r="11"/><circle class="mark dot f1" cx="616" cy="66" r="4"/></g><path class="line k2" d="M48 249.3L190 228.5L332 207.7L474 191L616 174.3"/><g class="pt"><title>World, 2020: 4%</title><circle class="hit" cx="48" cy="249.3" r="11"/><circle class="mark dot f2" cx="48" cy="249.3" r="4"/></g><g class="pt"><title>World, 2021: 9%</title><circle class="hit" cx="190" cy="228.5" r="11"/><circle class="mark dot f2" cx="190" cy="228.5" r="4"/></g><g class="pt"><title>World, 2022: 14%</title><circle class="hit" cx="332" cy="207.7" r="11"/><circle class="mark dot f2" cx="332" cy="207.7" r="4"/></g><g class="pt"><title>World, 2023: 18%</title><circle class="hit" cx="474" cy="191" r="11"/><circle class="mark dot f2" cx="474" cy="191" r="4"/></g><g class="pt"><title>World, 2024: 22%</title><circle class="hit" cx="616" cy="174.3" r="11"/><circle class="mark dot f2" cx="616" cy="174.3" r="4"/></g><path class="line k3" d="M48 257.7L190 245.2L332 232.7L474 224.3L616 224.3"/><g class="pt"><title>United States, 2020: 2%</title><circle class="hit" cx="48" cy="257.7" r="11"/><circle class="mark dot f3" cx="48" cy="257.7" r="4"/></g><g class="pt"><title>United States, 2021: 5%</title><circle class="hit" cx="190" cy="245.2" r="11"/><circle class="mark dot f3" cx="190" cy="245.2" r="4"/></g><g class="pt"><title>United States, 2022: 8%</title><circle class="hit" cx="332" cy="232.7" r="11"/><circle class="mark dot f3" cx="332" cy="232.7" r="4"/></g><g class="pt"><title>United States, 2023: 10%</title><circle class="hit" cx="474" cy="224.3" r="11"/><circle class="mark dot f3" cx="474" cy="224.3" r="4"/></g><g class="pt"><title>United States, 2024: 10%</title><circle class="hit" cx="616" cy="224.3" r="11"/><circle class="mark dot f3" cx="616" cy="224.3" r="4"/></g><text class="val" x="625" y="70">48%</text><text class="val" x="625" y="178.3">22%</text><text class="val" x="625" y="228.3">10%</text></svg></div><div class="chart-foot"><span>Approximate shares from the IEA Global EV Outlook<a class="cite" href="#src-1" title="Global EV Outlook 2025">1</a><a class="cite" href="#src-3" title="Global EV Outlook 2024: Trends in electric cars">3</a></span><details class="data"><summary>Show data</summary><table><tr><th></th><th>China</th><th>World</th><th>United States</th></tr><tr><td>2020</td><td class="num">6%</td><td class="num">4%</td><td class="num">2%</td></tr><tr><td>2021</td><td class="num">16%</td><td class="num">9%</td><td class="num">5%</td></tr><tr><td>2022</td><td class="num">29%</td><td class="num">14%</td><td class="num">8%</td></tr><tr><td>2023</td><td class="num">38%</td><td class="num">18%</td><td class="num">10%</td></tr><tr><td>2024</td><td class="num">48%</td><td class="num">22%</td><td class="num">10%</td></tr></table></details></div></figure><figure class="chart-card"><h3>Where 2024&#x27;s electric cars were sold</h3><p class="sub">Millions of cars</p><div class="chart-wrap"><svg class="chart" viewBox="0 0 680 240" role="img" aria-label="Where 2024&#x27;s electric cars were sold" xmlns="http://www.w3.org/2000/svg"><g class="pt"><title>China: 11.3M (65.32%)</title><circle class="mark k1" cx="120" cy="120" r="84" fill="none" stroke-width="30" stroke-dasharray="342.7 527.8" stroke-dashoffset="-0" transform="rotate(-90 120 120)"/></g><g class="pt"><title>Europe: 3.2M (18.5%)</title><circle class="mark k2" cx="120" cy="120" r="84" fill="none" stroke-width="30" stroke-dasharray="95.6 527.8" stroke-dashoffset="-344.7" transform="rotate(-90 120 120)"/></g><g class="pt"><title>United States: 1.6M (9.25%)</title><circle class="mark k3" cx="120" cy="120" r="84" fill="none" stroke-width="30" stroke-dasharray="46.8 527.8" stroke-dashoffset="-442.4" transform="rotate(-90 120 120)"/></g><g class="pt"><title>Rest of world: 1.2M (6.94%)</title><circle class="mark k4" cx="120" cy="120" r="84" fill="none" stroke-width="30" stroke-dasharray="34.6 527.8" stroke-dashoffset="-491.2" transform="rotate(-90 120 120)"/></g><text class="big" x="120" y="126" text-anchor="middle">17.3M</text><text class="tick" x="120" y="146" text-anchor="middle">cars in 2024</text><rect class="f1" x="260" y="64" width="12" height="12" rx="3"/><text class="lbl" x="282" y="75">China</text><text class="val" x="672" y="75" text-anchor="end">11.3M · 65.3%</text><rect class="f2" x="260" y="96" width="12" height="12" rx="3"/><text class="lbl" x="282" y="107">Europe</text><text class="val" x="672" y="107" text-anchor="end">3.2M · 18.5%</text><rect class="f3" x="260" y="128" width="12" height="12" rx="3"/><text class="lbl" x="282" y="139">United States</text><text class="val" x="672" y="139" text-anchor="end">1.6M · 9.2%</text><rect class="f4" x="260" y="160" width="12" height="12" rx="3"/><text class="lbl" x="282" y="171">Rest of world</text><text class="val" x="672" y="171" text-anchor="end">1.2M · 6.9%</text></svg></div><div class="chart-foot"><span>Rounded; regions add up to the global total<a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a></span><details class="data"><summary>Show data</summary><table><tr><th></th><th>Where 2024&#x27;s electric cars were sold</th></tr><tr><td>China</td><td class="num">11.3M</td></tr><tr><td>Europe</td><td class="num">3.2M</td></tr><tr><td>United States</td><td class="num">1.6M</td></tr><tr><td>Rest of world</td><td class="num">1.2M</td></tr></table></details></div></figure><figure class="chart-card"><h3>Growth in 2024 by region</h3><p class="sub">Change in electric car sales vs 2023</p><div class="chart-wrap"><svg class="chart" viewBox="0 0 680 148" role="img" aria-label="Growth in 2024 by region" xmlns="http://www.w3.org/2000/svg"><g class="pt"><title>China: 40%</title><rect class="hit" x="0" y="0" width="680" height="48"/><text class="lbl" x="0" y="15">China</text><path class="mark f1" d="M0 23H580Q584 23 584 27V35Q584 39 580 39H0Z"/><text class="val" x="592" y="36" text-anchor="start">40%</text></g><g class="pt"><title>United States: 10%</title><rect class="hit" x="0" y="48" width="680" height="48"/><text class="lbl" x="0" y="63">United States</text><path class="mark f1" d="M0 71H142Q146 71 146 75V83Q146 87 142 87H0Z"/><text class="val" x="154" y="84" text-anchor="start">10%</text></g><g class="pt"><title>Europe: 0%</title><rect class="hit" x="0" y="96" width="680" height="48"/><text class="lbl" x="0" y="111">Europe</text><path class="mark f1" d="M0 119H0Q0 119 0 119V135Q0 135 0 135H0Z"/><text class="val" x="8" y="132" text-anchor="start">0%</text></g></svg></div><div class="chart-foot"><span>Approximate; Europe was roughly flat<a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a></span><details class="data"><summary>Show data</summary><table><tr><th></th><th>Growth in 2024 by region</th></tr><tr><td>China</td><td class="num">40%</td></tr><tr><td>United States</td><td class="num">10%</td></tr><tr><td>Europe</td><td class="num">0%</td></tr></table></details></div></figure></section>
+<section class="section" id="section-1"><div class="kicker">Sub-question 1</div><h2>How fast are sales growing?</h2><p>Electric car sales grew by about 25% in 2024, to more than 17 million <a class="cite" href="#src-1" title="Global EV Outlook 2025">1</a>. That is slower than the huge jumps of 2021 and 2022, but the market is now much bigger, so each year adds millions of cars <a class="cite" href="#src-3" title="Global EV Outlook 2024: Trends in electric cars">3</a>.</p><figure class="img"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Electric_car_charging_station.jpg?width=1200" alt="An electric car plugged into a public charging station" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.parentNode.style.display='none'"><figcaption>Public charging points are spreading fast, mostly in China. <span class="credit">Image: <a href="https://commons.wikimedia.org/" rel="noopener noreferrer" target="_blank">Wikimedia Commons</a></span><a class="cite" href="#src-6" title="Electric car use by country">6</a></figcaption></figure><p>The IEA&#x27;s outlook says sales should pass 20 million in 2025. That would make about 1 in 4 new cars electric <a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a>. Early 2025 sales were up about a third on the year before <a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a>.</p></section><section class="section" id="section-2"><div class="kicker">Sub-question 2</div><h2>Where is the growth coming from?</h2><p><strong>China</strong> sold more than 11 million electric cars in 2024. That is more than the whole world sold just two years before <a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a>. Almost half of all new cars sold in China were electric.</p><p><strong>Europe</strong> stayed flat at about 3.2 million. Some subsidies ended, and EU rules on car emissions only tighten again in 2025 <a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a>. Counts for the EU alone show battery-only cars slipping a little <a class="cite" href="#src-5" title="New car registrations: +0.8% in 2024; battery-electric 13.6% market share">5</a>.</p><p><strong>The United States</strong> grew about 10%, to about 1.6 million. About 1 in 10 new cars sold there was electric <a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a>.</p></section><section class="section" id="section-3"><div class="kicker">Sub-question 3</div><h2>Are electric cars getting cheaper?</h2><p>Batteries are the most expensive part of an electric car. Their average price fell about 20% in 2024, to $115 per kWh <a class="cite" href="#src-4" title="Lithium-ion battery pack prices see largest drop since 2017, falling to $115 per kilowatt-hour">4</a>. Cheaper batteries make cheaper cars possible.</p><p>In China, most electric cars sold in 2024 already cost less than similar petrol cars <a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a>. In Europe and the United States, electric cars still cost more to buy on average <a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a>.</p></section>
+<section id="confidence"><div class="kicker">Confidence</div><h2>How sure are we?</h2><div class="legend-status"><span><span class="tag verified"><i aria-hidden="true">&#10003;</i>Verified</span> Checked against the source text, and sources agree.</span><span><span class="tag single"><i aria-hidden="true">1</i>Single source</span> Only one source says this.</span><span><span class="tag conflicting"><i aria-hidden="true">!</i>Conflicting</span> Sources disagree. Read the note.</span></div><ul class="claims"><li><div>More than 17 million electric cars were sold worldwide in 2024.<a class="cite" href="#src-1" title="Global EV Outlook 2025">1</a><a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a></div><span class="tag verified"><i aria-hidden="true">&#10003;</i>Verified</span></li><li><div>Electric cars were more than 20% of new car sales in 2024.<a class="cite" href="#src-1" title="Global EV Outlook 2025">1</a><a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a></div><span class="tag verified"><i aria-hidden="true">&#10003;</i>Verified</span></li><li><div>China sold more than 11 million electric cars in 2024.<a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a><a class="cite" href="#src-6" title="Electric car use by country">6</a></div><span class="tag verified"><i aria-hidden="true">&#10003;</i>Verified</span></li><li><div>US electric car sales grew about 10%, to about 1.6 million.<a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a><a class="cite" href="#src-6" title="Electric car use by country">6</a></div><span class="tag verified"><i aria-hidden="true">&#10003;</i>Verified</span></li><li><div>Electric car sales in Europe were flat in 2024.<a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a><a class="cite" href="#src-5" title="New car registrations: +0.8% in 2024; battery-electric 13.6% market share">5</a></div><span class="tag conflicting"><i aria-hidden="true">!</i>Conflicting</span><div class="note">The IEA says sales held at about 3.2 million. ACEA says battery-only cars fell a little in the EU. They count different things (all of Europe and plug-in hybrids vs EU battery-only cars), so both can be true.</div></li><li><div>Average battery pack prices fell about 20% in 2024, to $115 per kWh.<a class="cite" href="#src-4" title="Lithium-ion battery pack prices see largest drop since 2017, falling to $115 per kilowatt-hour">4</a></div><span class="tag single"><i aria-hidden="true">1</i>Single source</span><div class="note">Only BloombergNEF&#x27;s yearly survey reports this exact figure.</div></li><li><div>Most electric cars sold in China in 2024 cost less than similar petrol cars.<a class="cite" href="#src-2" title="Global EV Outlook 2025: Executive summary">2</a></div><span class="tag single"><i aria-hidden="true">1</i>Single source</span><div class="note">Only the IEA report makes this price comparison.</div></li></ul></section>
+<section id="unconfirmed"><div class="kicker">Open questions</div><h2>What we couldn't confirm</h2><ul class="unconfirmed"><li>Exact sales for all of 2025.<span class="note">The year was not over when this report was written. The 20 million figure is a forecast.</span></li><li>How many people sell an electric car and go back to petrol.<span class="note">We found no large, recent survey on this.</span></li></ul></section>
+<section id="sources"><div class="kicker">Sources</div><h2>Where this comes from</h2><ol class="sources"><li class="source" id="src-1"><div class="icon" aria-hidden="true">I<img src="https://www.iea.org/favicon.ico" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"></div><div><div class="title"><span class="num">[1]</span><a href="https://www.iea.org/reports/global-ev-outlook-2025" rel="noopener noreferrer" target="_blank">Global EV Outlook 2025</a></div><div class="meta"><span>IEA</span><time datetime="2025-05-14">May 14, 2025</time><span class="badge high">High authority · 4/4</span></div></div></li><li class="source" id="src-2"><div class="icon" aria-hidden="true">I<img src="https://www.iea.org/favicon.ico" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"></div><div><div class="title"><span class="num">[2]</span><a href="https://www.iea.org/reports/global-ev-outlook-2025/executive-summary" rel="noopener noreferrer" target="_blank">Global EV Outlook 2025: Executive summary</a></div><div class="meta"><span>IEA</span><time datetime="2025-05-14">May 14, 2025</time><span class="badge high">High authority · 4/4</span></div></div></li><li class="source" id="src-3"><div class="icon" aria-hidden="true">I<img src="https://www.iea.org/favicon.ico" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"></div><div><div class="title"><span class="num">[3]</span><a href="https://www.iea.org/reports/global-ev-outlook-2024/trends-in-electric-cars" rel="noopener noreferrer" target="_blank">Global EV Outlook 2024: Trends in electric cars</a></div><div class="meta"><span>IEA</span><time datetime="2024-04-23">April 23, 2024</time><span class="badge high">High authority · 4/4</span></div></div></li><li class="source" id="src-4"><div class="icon" aria-hidden="true">B</div><div><div class="title"><span class="num">[4]</span><a href="https://about.bnef.com/blog/lithium-ion-battery-pack-prices-see-largest-drop-since-2017-falling-to-115-per-kilowatt-hour-bloombergnef/" rel="noopener noreferrer" target="_blank">Lithium-ion battery pack prices see largest drop since 2017, falling to $115 per kilowatt-hour</a></div><div class="meta"><span>BloombergNEF</span><time datetime="2024-12-10">December 10, 2024</time><span class="badge high">High authority · 3/4</span></div></div></li><li class="source" id="src-5"><div class="icon" aria-hidden="true">A</div><div><div class="title"><span class="num">[5]</span><a href="https://www.acea.auto/pc-registrations/new-car-registrations-0-8-in-2024-battery-electric-13-6-market-share/" rel="noopener noreferrer" target="_blank">New car registrations: +0.8% in 2024; battery-electric 13.6% market share</a></div><div class="meta"><span>ACEA</span><time datetime="2025-01-21">January 21, 2025</time><span class="badge high">High authority · 3/4</span></div></div></li><li class="source" id="src-6"><div class="icon" aria-hidden="true">W<img src="https://en.wikipedia.org/static/favicon/wikipedia.ico" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"></div><div><div class="title"><span class="num">[6]</span><a href="https://en.wikipedia.org/wiki/Electric_car_use_by_country" rel="noopener noreferrer" target="_blank">Electric car use by country</a></div><div class="meta"><span>Wikipedia</span><span class="badge">Authority 2/4</span></div></div></li></ol></section>
+<footer>Made with deepseek-research. Web search by DeepSeek. Research cost about $0.03. Generated October 18, 2026.</footer>
+</main>
+</body>
+</html>

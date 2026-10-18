@@ -1,0 +1,150 @@
+{
+  "title": "Is the electric car market still growing?",
+  "question": "Are electric car sales still growing worldwide, and where is the growth coming from?",
+  "date": "2025-06-15",
+  "mode": "advanced",
+  "lang": "en",
+  "notice": "Example report. It shows what the skill produces. The figures follow public reports from mid-2025 (IEA Global EV Outlook 2025, BloombergNEF, ACEA), but this file was written by hand, not by a live run, so the header counts are illustrative. Check the sources before reusing a number.",
+  "tldr": "Yes. More than 17 million electric cars were sold in 2024, over 1 in 5 new cars worldwide [1]. China made almost two thirds of those sales, while Europe stayed flat [2].",
+  "counts": {
+    "searches": 14,
+    "sources_found": 186,
+    "sources_read": 22
+  },
+  "cost_usd": 0.027,
+  "takeaways": [
+    {"text": "Electric car sales passed 17 million in 2024. That is more than 1 in every 5 new cars sold.", "cites": [1, 2]},
+    {"text": "China is the engine. It sold over 11 million electric cars, almost half of all new cars sold there.", "cites": [2]},
+    {"text": "Europe stalled at about 3.2 million, and the United States grew a little, to about 1.6 million.", "cites": [2]},
+    {"text": "Batteries got much cheaper. Pack prices fell about 20% in 2024, the biggest drop since 2017.", "cites": [4]},
+    {"text": "The IEA expects more than 20 million sales in 2025, about 1 in 4 new cars.", "cites": [2]}
+  ],
+  "numbers": {
+    "heading": "The market in five numbers",
+    "intro": "Sales have grown every year since 2020. The pace slowed in 2024, but growth did not stop [1][3].",
+    "stats": [
+      {"label": "Electric cars sold in 2024", "value": 17000000, "unit": "+", "note": "Battery and plug-in hybrid cars", "cites": [1]},
+      {"label": "Share of new cars sold", "value": "20", "unit": "%+", "note": "Up from about 4% in 2020", "cites": [1, 3]},
+      {"label": "Sold in China", "value": 11000000, "unit": "+", "note": "Almost half of China's car sales", "cites": [2]},
+      {"label": "Battery pack price", "value": "115", "unit": "$/kWh", "note": "Average in 2024, down about 20%", "cites": [4]}
+    ],
+    "charts": [
+      {
+        "type": "bar",
+        "title": "Electric car sales worldwide",
+        "subtitle": "Millions of cars sold per year",
+        "unit": "M",
+        "data": [
+          {"label": "2020", "value": 3},
+          {"label": "2021", "value": 6.6},
+          {"label": "2022", "value": 10.2},
+          {"label": "2023", "value": 14},
+          {"label": "2024", "value": 17.3}
+        ],
+        "caption": "Rounded figures from the IEA Global EV Outlook",
+        "cites": [1, 3]
+      },
+      {
+        "type": "line",
+        "title": "Share of new cars that are electric",
+        "subtitle": "Percent of new car sales",
+        "unit": "%",
+        "labels": ["2020", "2021", "2022", "2023", "2024"],
+        "series": [
+          {"name": "China", "values": [6, 16, 29, 38, 48]},
+          {"name": "World", "values": [4, 9, 14, 18, 22]},
+          {"name": "United States", "values": [2, 5, 8, 10, 10]}
+        ],
+        "caption": "Approximate shares from the IEA Global EV Outlook",
+        "cites": [1, 3]
+      },
+      {
+        "type": "donut",
+        "title": "Where 2024's electric cars were sold",
+        "subtitle": "Millions of cars",
+        "unit": "M",
+        "center_value": "17.3M",
+        "center_label": "cars in 2024",
+        "data": [
+          {"label": "China", "value": 11.3},
+          {"label": "Europe", "value": 3.2},
+          {"label": "United States", "value": 1.6},
+          {"label": "Rest of world", "value": 1.2}
+        ],
+        "caption": "Rounded; regions add up to the global total",
+        "cites": [2]
+      },
+      {
+        "type": "hbar",
+        "title": "Growth in 2024 by region",
+        "subtitle": "Change in electric car sales vs 2023",
+        "unit": "%",
+        "data": [
+          {"label": "China", "value": 40},
+          {"label": "United States", "value": 10},
+          {"label": "Europe", "value": 0}
+        ],
+        "caption": "Approximate; Europe was roughly flat",
+        "cites": [2]
+      }
+    ]
+  },
+  "sections": [
+    {
+      "kicker": "Sub-question 1",
+      "heading": "How fast are sales growing?",
+      "paragraphs": [
+        "Electric car sales grew by about 25% in 2024, to more than 17 million [1]. That is slower than the huge jumps of 2021 and 2022, but the market is now much bigger, so each year adds millions of cars [3].",
+        "The IEA's outlook says sales should pass 20 million in 2025. That would make about 1 in 4 new cars electric [2]. Early 2025 sales were up about a third on the year before [2]."
+      ],
+      "images": [
+        {
+          "url": "https://commons.wikimedia.org/wiki/Special:FilePath/Electric_car_charging_station.jpg?width=1200",
+          "alt": "An electric car plugged into a public charging station",
+          "caption": "Public charging points are spreading fast, mostly in China.",
+          "credit": "Wikimedia Commons",
+          "credit_url": "https://commons.wikimedia.org/",
+          "source": 6
+        }
+      ]
+    },
+    {
+      "kicker": "Sub-question 2",
+      "heading": "Where is the growth coming from?",
+      "paragraphs": [
+        "**China** sold more than 11 million electric cars in 2024. That is more than the whole world sold just two years before [2]. Almost half of all new cars sold in China were electric.",
+        "**Europe** stayed flat at about 3.2 million. Some subsidies ended, and EU rules on car emissions only tighten again in 2025 [2]. Counts for the EU alone show battery-only cars slipping a little [5].",
+        "**The United States** grew about 10%, to about 1.6 million. About 1 in 10 new cars sold there was electric [2]."
+      ]
+    },
+    {
+      "kicker": "Sub-question 3",
+      "heading": "Are electric cars getting cheaper?",
+      "paragraphs": [
+        "Batteries are the most expensive part of an electric car. Their average price fell about 20% in 2024, to $115 per kWh [4]. Cheaper batteries make cheaper cars possible.",
+        "In China, most electric cars sold in 2024 already cost less than similar petrol cars [2]. In Europe and the United States, electric cars still cost more to buy on average [2]."
+      ]
+    }
+  ],
+  "claims": [
+    {"text": "More than 17 million electric cars were sold worldwide in 2024.", "status": "verified", "source_ids": [1, 2]},
+    {"text": "Electric cars were more than 20% of new car sales in 2024.", "status": "verified", "source_ids": [1, 2]},
+    {"text": "China sold more than 11 million electric cars in 2024.", "status": "verified", "source_ids": [2, 6]},
+    {"text": "US electric car sales grew about 10%, to about 1.6 million.", "status": "verified", "source_ids": [2, 6]},
+    {"text": "Average battery pack prices fell about 20% in 2024, to $115 per kWh.", "status": "single source", "source_ids": [4], "note": "Only BloombergNEF's yearly survey reports this exact figure."},
+    {"text": "Most electric cars sold in China in 2024 cost less than similar petrol cars.", "status": "single source", "source_ids": [2], "note": "Only the IEA report makes this price comparison."},
+    {"text": "Electric car sales in Europe were flat in 2024.", "status": "conflicting", "source_ids": [2, 5], "note": "The IEA says sales held at about 3.2 million. ACEA says battery-only cars fell a little in the EU. They count different things (all of Europe and plug-in hybrids vs EU battery-only cars), so both can be true."}
+  ],
+  "unconfirmed": [
+    {"text": "Exact sales for all of 2025.", "note": "The year was not over when this report was written. The 20 million figure is a forecast."},
+    {"text": "How many people sell an electric car and go back to petrol.", "note": "We found no large, recent survey on this."}
+  ],
+  "sources": [
+    {"id": 1, "title": "Global EV Outlook 2025", "url": "https://www.iea.org/reports/global-ev-outlook-2025", "site_name": "IEA", "site_icon": "https://www.iea.org/favicon.ico", "date": "2025-05-14", "authority": 4},
+    {"id": 2, "title": "Global EV Outlook 2025: Executive summary", "url": "https://www.iea.org/reports/global-ev-outlook-2025/executive-summary", "site_name": "IEA", "site_icon": "https://www.iea.org/favicon.ico", "date": "2025-05-14", "authority": 4},
+    {"id": 3, "title": "Global EV Outlook 2024: Trends in electric cars", "url": "https://www.iea.org/reports/global-ev-outlook-2024/trends-in-electric-cars", "site_name": "IEA", "site_icon": "https://www.iea.org/favicon.ico", "date": "2024-04-23", "authority": 4},
+    {"id": 4, "title": "Lithium-ion battery pack prices see largest drop since 2017, falling to $115 per kilowatt-hour", "url": "https://about.bnef.com/blog/lithium-ion-battery-pack-prices-see-largest-drop-since-2017-falling-to-115-per-kilowatt-hour-bloombergnef/", "site_name": "BloombergNEF", "date": "2024-12-10", "authority": 3},
+    {"id": 5, "title": "New car registrations: +0.8% in 2024; battery-electric 13.6% market share", "url": "https://www.acea.auto/pc-registrations/new-car-registrations-0-8-in-2024-battery-electric-13-6-market-share/", "site_name": "ACEA", "date": "2025-01-21", "authority": 3},
+    {"id": 6, "title": "Electric car use by country", "url": "https://en.wikipedia.org/wiki/Electric_car_use_by_country", "site_name": "Wikipedia", "site_icon": "https://en.wikipedia.org/static/favicon/wikipedia.ico", "authority": 2}
+  ]
+}
