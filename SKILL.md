@@ -1,9 +1,9 @@
 ---
-name: deepseek-research
+name: bettersearch
 description: Web research with DeepSeek's Search & Fetch APIs. Use whenever the user asks to research something, look up or look into a topic, search the web, find sources, check current facts, numbers or prices, compare options with up-to-date info, fact check a claim, or do deep research / write a research report. Quick mode answers in chat with numbered citations; advanced (deep) mode runs a planner, researchers, fact-checker, reviewer and writer and builds a self-contained HTML report.
 ---
 
-# DeepSeek Research
+# BetterSearch
 
 You do web research with `scripts/dsr.py`, a small Python CLI (stdlib only, Python 3.9+)
 that calls DeepSeek's Search and Fetch APIs. It handles keys, rate limits and retries,

@@ -48,7 +48,7 @@ DOMAIN_QPS = 1.0                 # Fetch also limits per domain
 MAX_RETRIES = 4
 TIMEOUT = 30
 MAX_QUERY_CHARS = 128
-USER_AGENT = "deepseek-research/" + __version__
+USER_AGENT = "bettersearch/" + __version__
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 TEMPLATE_PATH = SCRIPT_DIR / "report_template.html"
@@ -1386,7 +1386,7 @@ class ReportBuilder:
                 '<ol class="sources">%s</ol></section>' % "".join(cards))
 
     def footer(self) -> str:
-        bits = ["Made with deepseek-research. Web search by DeepSeek."]
+        bits = ["Made with BetterSearch. Web search by DeepSeek."]
         cost = self.spec.get("cost_usd")
         if isinstance(cost, (int, float)):
             bits.append("Research cost about $%s." % fmt_num(round(cost, 3)))
@@ -1418,7 +1418,7 @@ def build_report(spec: Dict[str, Any], template: Optional[str] = None) -> Tuple[
         "lang": esc(spec.get("lang") or "en"),
         "title": esc(spec["title"]),
         "description": esc(CITE_MARK.sub("", str(desc)).strip()),
-        "generator": esc("deepseek-research dsr.py " + __version__),
+        "generator": esc("BetterSearch dsr.py " + __version__),
         "fonts": font_css(),
         "content": content,
     })

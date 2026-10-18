@@ -806,7 +806,7 @@ class SkillFileTests(unittest.TestCase):
         m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
         self.assertIsNotNone(m)
         front = dict(line.split(": ", 1) for line in m.group(1).splitlines())
-        self.assertEqual(front["name"], "deepseek-research")
+        self.assertEqual(front["name"], "bettersearch")
         for phrase in ("research", "look up", "search the web", "deep research", "fact check"):
             self.assertIn(phrase, front["description"].lower())
         self.assertLess(len(text.splitlines()), 300)
@@ -829,7 +829,7 @@ class InstallScriptTests(unittest.TestCase):
             res = self.run_install(home)
             self.assertEqual(res.returncode, 0, res.stderr)
             for d in (".claude/skills", ".codex/skills", ".config/opencode/skills"):
-                skill = home / d / "deepseek-research"
+                skill = home / d / "bettersearch"
                 self.assertTrue((skill / "SKILL.md").is_file(), d)
                 self.assertTrue((skill / "scripts" / "dsr.py").is_file(), d)
                 self.assertTrue((skill / "references" / "roles.md").is_file(), d)
@@ -837,11 +837,11 @@ class InstallScriptTests(unittest.TestCase):
             self.assertFalse((home / ".cursor").exists())
             self.assertIn("dsr.py\" setup", res.stdout)
             # re-install replaces cleanly, no leftovers
-            (home / ".claude/skills/deepseek-research/stale.txt").write_text("x")
+            (home / ".claude/skills/bettersearch/stale.txt").write_text("x")
             res = self.run_install(home)
             self.assertEqual(res.returncode, 0, res.stderr)
-            self.assertEqual(sorted(p.name for p in (home / ".claude/skills").iterdir()), ["deepseek-research"])
-            self.assertFalse((home / ".claude/skills/deepseek-research/stale.txt").exists())
+            self.assertEqual(sorted(p.name for p in (home / ".claude/skills").iterdir()), ["bettersearch"])
+            self.assertFalse((home / ".claude/skills/bettersearch/stale.txt").exists())
 
     def test_project_mode_and_dry_run(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -850,13 +850,13 @@ class InstallScriptTests(unittest.TestCase):
             (proj / ".cursor").mkdir(parents=True)
             res = self.run_install(home, "--project", "--dry-run", cwd=str(proj))
             self.assertEqual(res.returncode, 0, res.stderr)
-            self.assertIn(str(proj / ".claude/skills/deepseek-research"), res.stdout)
-            self.assertIn(str(proj / ".agents/skills/deepseek-research"), res.stdout)
-            self.assertIn(str(proj / ".cursor/skills/deepseek-research"), res.stdout)
+            self.assertIn(str(proj / ".claude/skills/bettersearch"), res.stdout)
+            self.assertIn(str(proj / ".agents/skills/bettersearch"), res.stdout)
+            self.assertIn(str(proj / ".cursor/skills/bettersearch"), res.stdout)
             self.assertFalse((proj / ".claude").exists())  # dry run wrote nothing
             res = self.run_install(home, "--project", cwd=str(proj))
             self.assertEqual(res.returncode, 0, res.stderr)
-            self.assertTrue((proj / ".agents/skills/deepseek-research/SKILL.md").is_file())
+            self.assertTrue((proj / ".agents/skills/bettersearch/SKILL.md").is_file())
 
 
 class FormatTests(unittest.TestCase):

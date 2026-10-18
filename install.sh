@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Install the deepseek-research skill into every agent skills folder found.
+# Install the bettersearch skill into every agent skills folder found.
 #
-#   curl -fsSL https://raw.githubusercontent.com/ry0narushima/deepseek-research/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/ry0narushima/bettersearch/main/install.sh | bash
 #   curl -fsSL .../install.sh | bash -s -- --project      # into ./.claude/skills etc.
 #   ./install.sh [--project] [--dir PATH] [--dry-run]
 #
 # Env: DSR_REPO (owner/name), DSR_BRANCH (default main).
 set -euo pipefail
 
-NAME="deepseek-research"
-REPO="${DSR_REPO:-ry0narushima/deepseek-research}"
+NAME="bettersearch"
+REPO="${DSR_REPO:-ry0narushima/bettersearch}"
 BRANCH="${DSR_BRANCH:-main}"
 MODE="user"
 DRY_RUN=0

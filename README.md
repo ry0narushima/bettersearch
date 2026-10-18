@@ -1,135 +1,112 @@
-# deepseek-research
+<p align="center">
+  <img src="docs/banner.png" alt="BetterSearch" width="100%">
+</p>
 
-**Better web research for any coding agent.** An [Agent Skill](https://agentskills.io) that teaches
-Claude Code, Codex, Cursor, Gemini CLI, OpenCode, Hermes and other agents to research the web
-properly with DeepSeek's Search & Fetch APIs. Small questions get quick answers with sources.
-Big questions get a fact-checked report that looks good enough to send to someone.
+# BetterSearch
 
-![The top of the example report: title, short answer, research trail, takeaways and the first chart](docs/screenshot.png)
+DeepSeek just opened up the search engine behind its app. Any agent can call it now for **$0.75 per 1,000 searches**.
 
-## What it does
+Raw results are decent. But an agent sending one vague query gets one vague answer... and sometimes some of it in Chinese (we searched in English and 2 of the top 5 came back in Chinese).
 
-- **Quick mode** (default): 2-4 targeted searches, reads the best pages, and answers in chat.
-  The answer comes first, every fact has a numbered citation, and dates are shown.
-- **Advanced mode** ("deep research", "write a report"): a team of agents does the work.
-  A planner splits the question, researchers read the sources in parallel, a fact-checker
-  checks every quote against the page text, a reviewer looks for gaps and bias, and a writer
-  builds the report.
-- **A beautiful offline report**: one HTML file with charts, key takeaways, a confidence tag on
-  every claim (verified / single source / conflicting), "what we couldn't confirm", and source cards.
-  It switches to dark mode automatically and works on a phone. See
-  [examples/example-report.html](examples/example-report.html).
-- **Cheap**: $0.75 per 1,000 searches. A quick answer costs well under a cent, and a full report
-  usually costs 2-5 cents.
-- **Nothing to install** apart from Python 3.9+. One script, standard library only.
+BetterSearch is a skill that fixes the part around the API: better queries, parallel research, a fact-check pass, and a clean report at the end. It works in Claude Code, Codex, Cursor, Gemini CLI, OpenCode and Hermes.
 
-## Install (one line)
+## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ry0narushima/deepseek-research/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ry0narushima/bettersearch/main/install.sh | bash
 ```
 
-This copies the skill into every agent skills folder it finds: `~/.claude/skills`,
-`~/.codex/skills`, `~/.agents/skills`, `~/.cursor/skills`, `~/.gemini/skills`,
-`~/.config/opencode/skills`, `~/.hermes/skills`.
-
-Only for the current project (`./.claude/skills`, `./.agents/skills`, and any other agent folders there):
+Then add your DeepSeek key, once:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ry0narushima/deepseek-research/main/install.sh | bash -s -- --project
+python3 ~/.claude/skills/bettersearch/scripts/dsr.py setup
 ```
 
-From a clone: `./install.sh` (options: `--project`, `--dir PATH`, `--dry-run`).
+It opens the key page, tells you what to click, tests the key and saves it to `~/.config/deepseek-research/` (chmod 600). The key never goes through your agent's chat. `DEEPSEEK_API_KEY` works too.
 
-## Setup: your DeepSeek key (about 2 minutes)
+## Two modes
 
-Run this in your own terminal:
-
-```bash
-python3 ~/.claude/skills/deepseek-research/scripts/dsr.py setup
-```
-
-It opens https://platform.deepseek.com/api_keys and walks you through it:
-
-1. Sign up or log in, and top up a small balance (a few dollars lasts a long time).
-2. Click **Create new API key** and copy it.
-3. Paste it into the terminal. It stays hidden while you type.
-
-The tool runs one test search, then saves the key to `~/.config/deepseek-research/config.json`,
-readable only by you. You can use an environment variable instead:
-
-```bash
-export DEEPSEEK_API_KEY=sk-...
-```
-
-Your agent never sees the key. If it finds no key, it asks you to run `setup` yourself.
-Never paste your key into an agent chat.
-
-Check it any time with `python3 .../dsr.py check`.
-
-## Examples
-
-Just ask your agent:
-
-> Look up when Python 3.14 reaches end of life.
-
-> Fact check: "Norway sells more electric cars than petrol cars."
-
-> Do deep research on whether heat pumps save money in cold climates, and make a report.
-
-> Research the EV market in 2025. I want a thorough report with numbers.
-
-Advanced runs are saved in `./research/<topic>-<date>/`:
+**Quick** is the default. Ask a normal question, get a sourced answer in chat.
 
 ```
-plan.json  sources.json  raw/  claims.json  review.md  spec.json  report.html
+you ──► 2-4 sharp queries ──► best 1-3 pages fetched ──► answer + [1] [2] citations
+        (lang:, after:, site:)
 ```
 
-### Using the CLI directly
+**Advanced** kicks in when you say "deep research", or the question is big.
 
-```bash
-dsr=~/.claude/skills/deepseek-research/scripts/dsr.py
-python3 $dsr search "heat pump running costs" --after 2024 --site energysavingtrust.org.uk
-python3 $dsr search "热泵 能效" --lang zh,en --count 20 --json
-python3 $dsr fetch https://www.iea.org/reports/global-ev-outlook-2025
-python3 $dsr batch research/my-run/plan.json --out research/my-run
-python3 $dsr report examples/example-spec.json --out /tmp/report.html --open
+```
+                        ┌──────────────┐
+           question ──► │   planner    │  8-20 queries, up to 50 results each
+                        └──────┬───────┘
+                               ▼
+                        ┌──────────────┐
+                        │    gather    │  dedupe, rank by authority, fetch top 25
+                        └──────┬───────┘
+                ┌──────────────┼──────────────┐
+                ▼              ▼              ▼
+          ┌──────────┐   ┌──────────┐   ┌──────────┐
+          │researcher│   │researcher│   │researcher│   one per sub-question,
+          └────┬─────┘   └────┬─────┘   └────┬─────┘   in parallel
+               └──────────────┼──────────────┘
+                              ▼
+                       ┌──────────────┐
+                       │ fact-checker │  every quote must exist in the source
+                       └──────┬───────┘
+                              ▼
+                       ┌──────────────┐
+                       │   reviewer   │  gaps, stale data ──► 1 follow-up round
+                       └──────┬───────┘
+                              ▼
+                        report.html     one offline file: takeaways, charts,
+                                        images, confidence per claim, sources
 ```
 
-## How it works
+No subagent tool in your agent? It runs the same roles one after another. Same output.
 
-| File | What it is |
+## The report
+
+<p align="center">
+  <img src="docs/screenshot.png" alt="Example report" width="720">
+</p>
+
+One self-contained HTML file. No CDN, no JS dependencies, works offline, dark mode included. Every claim is tagged **verified**, **single source** or **conflicting**, and every citation links to its source card.
+
+## What it costs
+
+| | per 1,000 calls |
 |---|---|
-| `SKILL.md` | The instructions your agent reads |
-| `scripts/dsr.py` | The CLI: key setup, search, fetch, batch, report |
-| `scripts/report_template.html` | The report design |
-| `scripts/fonts/` | Poppins and Lora, built into every report so it looks right offline |
-| `references/` | Quick mode, advanced mode, role prompts, query tips, report format |
-| `examples/` | An example report spec and the report built from it |
+| DeepSeek Search | $0.75 |
+| DeepSeek Fetch | $0.75 |
+| Brave Search | $5 |
+| Exa Search | from $4 |
 
-Rate limits are handled for you: at most 4 requests a second per endpoint, plus per-domain
-spacing for fetches, and automatic retries with backoff on 429 and server errors.
+A quick question is usually 3 to 6 calls. A deep report is around 40 to 60, so roughly **$0.04**.
 
-## Development
+Note: search calls made by Claude Code or Codex through DeepSeek's own server-side tools are free until Oct 31, 2026. BetterSearch calls the API directly, so those are billed normally.
+
+## Use the CLI directly
 
 ```bash
-python3 -m unittest discover tests     # no network needed
-python3 scripts/dsr.py report examples/example-spec.json --out examples/example-report.html
+dsr.py search "deepseek search api lang:en after:2026-10-01" --count 10
+dsr.py fetch https://api-docs.deepseek.com/guides/search
+dsr.py batch plan.json --out run/
+dsr.py report spec.json --out report.html
 ```
 
-## License
+Python 3.9+, standard library only. Throttled under DeepSeek's 5 QPS limit, retries 429s with backoff.
 
-MIT. See [LICENSE](LICENSE).
+## Files
+
+```
+bettersearch/
+├── SKILL.md            what your agent reads
+├── scripts/dsr.py      search, fetch, batch, report, setup
+├── references/         mode guides, role prompts, query tips
+├── examples/           sample spec + rendered report
+└── install.sh          finds every agent skills folder and installs there
+```
 
 ## Credits
 
-The report uses two fonts. Both are in `scripts/fonts/` and are licensed under the
-[SIL Open Font License 1.1](https://openfontlicense.org):
-
-- **Poppins**, copyright 2020 The Poppins Project Authors (Indian Type Foundry).
-  See [scripts/fonts/OFL-Poppins.txt](scripts/fonts/OFL-Poppins.txt).
-- **Lora**, copyright 2011 The Lora Project Authors (Cyreal), Reserved Font Name "Lora".
-  See [scripts/fonts/OFL-Lora.txt](scripts/fonts/OFL-Lora.txt).
-
-The files are Latin-only woff2 subsets. `dsr.py report` builds them into each report as base64,
-so the report needs no internet to look right.
+Built on [DeepSeek's Search & Fetch API](https://api-docs.deepseek.com/guides/search). Not affiliated with DeepSeek. Report fonts: Poppins and Lora (SIL Open Font License). MIT license.
