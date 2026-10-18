@@ -14,7 +14,9 @@ Exit codes: 0 ok, 1 error, 2 no key, 3 key rejected, 4 balance too low.
 
 import argparse
 import getpass
+import html
 import json
+import math
 import os
 import random
 import re
@@ -781,6 +783,617 @@ def run_batch(plan: Dict[str, Any], run_dir: Path, client: "Client", max_fetches
 
 
 # ---------------------------------------------------------------------------
+# Report: spec.json -> one self-contained HTML file (inline CSS + SVG, no JS libs)
+
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+          "September", "October", "November", "December"]
+STATUSES = {
+    # key: (css class, icon, label, legend text)
+    "verified": ("verified", "&#10003;", "Verified", "Checked against the source text, and sources agree."),
+    "single": ("single", "1", "Single source", "Only one source says this."),
+    "conflicting": ("conflicting", "!", "Conflicting", "Sources disagree. Read the note."),
+}
+CITE_MARK = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
+BOLD_MARK = re.compile(r"\*\*(.+?)\*\*")
+PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
+MAX_SERIES = 8
+
+
+def esc(v: Any) -> str:
+    """HTML-escape text from the web. Braces too, so web text can never look like a template var."""
+    if v is None:
+        return ""
+    return html.escape(str(v), quote=True).replace("{", "&#123;").replace("}", "&#125;")
+
+
+def safe_url(u: Any) -> str:
+    """Only http(s) URLs may become links or image sources (no javascript:, data:, etc.)."""
+    if not isinstance(u, str):
+        return ""
+    u = u.strip()
+    p = urllib.parse.urlsplit(u)
+    if p.scheme.lower() in ("http", "https") and p.netloc and not re.search(r"[\s\"'<>`]", u):
+        return u
+    return ""
+
+
+def status_key(s: Any) -> str:
+    s = re.sub(r"[\s_-]+", " ", str(s or "")).strip().lower()
+    if s.startswith("verif"):
+        return "verified"
+    if s.startswith("single"):
+        return "single"
+    if s.startswith("conflict"):
+        return "conflicting"
+    return "unsupported"
+
+
+def fmt_num(v: Any, compact: bool = False) -> str:
+    if isinstance(v, str):
+        return v
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    if compact and abs(x) >= 1000:
+        for div, suffix in ((1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")):
+            if abs(x) >= div:
+                return ("%.1f" % (x / div)).rstrip("0").rstrip(".") + suffix
+    if x.is_integer():
+        return "{:,}".format(int(x))
+    digits = 1 if abs(x) >= 100 else 2
+    return "{:,.{d}f}".format(x, d=digits).rstrip("0").rstrip(".")
+
+
+def with_unit(s: str, unit: Optional[str]) -> str:
+    """'17' + '%' -> '17%'; '115' + '$/kWh' -> '$115/kWh'; '17.3' + 'million' -> '17.3 million'."""
+    if not unit:
+        return s
+    if unit in ("%", "pp", "x", "×", "K", "M", "B", "T", "bn"):
+        return s + unit
+    if unit[0] in "$€£¥₹":
+        return unit[0] + s + unit[1:]
+    return s + " " + unit
+
+
+def fmt_date(d: Any) -> str:
+    m = re.match(r"^(\d{4})-(\d{2})(?:-(\d{2}))?", str(d or ""))
+    if not m:
+        return str(d or "")
+    year, month, day = int(m.group(1)), int(m.group(2)), m.group(3)
+    if not 1 <= month <= 12:
+        return str(d)
+    return "%s %d, %d" % (MONTHS[month - 1], int(day), year) if day else "%s %d" % (MONTHS[month - 1], year)
+
+
+def nice_ticks(lo: float, hi: float, target: int = 4) -> List[float]:
+    if hi == lo:
+        hi = lo + (abs(lo) or 1)
+    span = hi - lo
+    mag = 10 ** math.floor(math.log10(span / target))
+    step = mag
+    for m in (1, 2, 2.5, 5, 10):
+        step = m * mag
+        if span / step <= target:
+            break
+    start = math.floor(lo / step + 1e-9) * step
+    end = math.ceil(hi / step - 1e-9) * step
+    ticks, v = [], start
+    while v <= end + step * 1e-6:
+        ticks.append(round(v, 10))
+        v += step
+    return ticks
+
+
+def _n(x: float) -> str:
+    """Compact SVG coordinate."""
+    return ("%.1f" % x).rstrip("0").rstrip(".")
+
+
+def wrap_label(text: str, max_chars: int, max_lines: int = 2) -> List[str]:
+    words, lines, cur = str(text).split(), [], ""
+    for w in words:
+        if not cur:
+            cur = w
+        elif len(cur) + 1 + len(w) <= max_chars:
+            cur += " " + w
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    lines = lines or [""]
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = lines[-1][: max(1, max_chars - 1)] + "…"
+    return [ln if len(ln) <= max_chars else ln[: max(1, max_chars - 1)] + "…" for ln in lines]
+
+
+def _col_path(x: float, w: float, y0: float, y1: float) -> str:
+    """Column from baseline y0 to value y1: 4px rounded data end, square at the baseline."""
+    d = 1 if y1 <= y0 else -1
+    r = min(4.0, w / 2, abs(y0 - y1))
+    return "M%s %sV%sQ%s %s %s %sH%sQ%s %s %s %sV%sZ" % (
+        _n(x), _n(y0), _n(y1 + d * r), _n(x), _n(y1), _n(x + r), _n(y1),
+        _n(x + w - r), _n(x + w), _n(y1), _n(x + w), _n(y1 + d * r), _n(y0))
+
+
+def _row_path(y: float, h: float, x0: float, x1: float) -> str:
+    """Horizontal bar from baseline x0 to value x1, rounded at the value end."""
+    d = 1 if x1 >= x0 else -1
+    r = min(4.0, h / 2, abs(x1 - x0))
+    return "M%s %sH%sQ%s %s %s %sV%sQ%s %s %s %sH%sZ" % (
+        _n(x0), _n(y), _n(x1 - d * r), _n(x1), _n(y), _n(x1), _n(y + r),
+        _n(y + h - r), _n(x1), _n(y + h), _n(x1 - d * r), _n(y + h), _n(x0))
+
+
+class ReportBuilder:
+    """Turns a report spec (see references/report-spec.md) into HTML. All web text is escaped."""
+
+    def __init__(self, spec: Dict[str, Any]):
+        if not isinstance(spec, dict) or not str(spec.get("title") or "").strip():
+            raise DsrError("The report spec needs at least a \"title\". See references/report-spec.md.")
+        self.spec = spec
+        self.warnings = []  # type: List[str]
+        self.sources = {}  # type: Dict[int, Dict[str, Any]]
+        for i, s in enumerate(spec.get("sources") or []):
+            if isinstance(s, dict):
+                sid = _to_int(re.sub(r"\D", "", str(s.get("id", i + 1))) or i + 1, i + 1)
+                self.sources[sid] = s
+        self.unit_sep = " "
+
+    # -- inline text
+
+    def chip(self, n: int) -> str:
+        s = self.sources.get(n)
+        if s is None:
+            self.warnings.append("Citation [%d] has no matching source." % n)
+            return '<span class="cite missing">%d</span>' % n
+        return '<a class="cite" href="#src-%d" title="%s">%d</a>' % (n, esc(s.get("title") or s.get("url")), n)
+
+    def chips(self, ids: Any) -> str:
+        if not isinstance(ids, (list, tuple)):
+            ids = [ids] if ids not in (None, "") else []
+        out = []
+        for i in ids:
+            n = _to_int(re.sub(r"\D", "", str(i)), -1)
+            if n >= 0:
+                out.append(self.chip(n))
+        return "".join(out)
+
+    def rich(self, text: Any) -> str:
+        """Escape, then turn [n] / [n, m] into citation links and **x** into bold."""
+        out = esc(text)
+        out = CITE_MARK.sub(lambda m: "".join(self.chip(int(x)) for x in re.findall(r"\d+", m.group(1))), out)
+        return BOLD_MARK.sub(r"<strong>\1</strong>", out)
+
+    def item(self, it: Any) -> str:
+        if isinstance(it, dict):
+            return self.rich(it.get("text", "")) + self.chips(it.get("cites") or it.get("source_ids"))
+        return self.rich(it)
+
+    # -- charts
+
+    def chart(self, c: Dict[str, Any]) -> str:
+        kind = str(c.get("type") or "bar").lower()
+        render = {"bar": self.svg_bar, "column": self.svg_bar, "hbar": self.svg_hbar,
+                  "horizontal_bar": self.svg_hbar, "line": self.svg_line, "donut": self.svg_donut,
+                  "pie": self.svg_donut}.get(kind)
+        if render is None:
+            self.warnings.append("Unknown chart type %r skipped." % kind)
+            return ""
+        labels, series = self.chart_data(c, kind)
+        if not labels or not series:
+            self.warnings.append("Chart %r has no data and was skipped." % c.get("title"))
+            return ""
+        unit = c.get("unit")
+        legend = ""
+        if kind == "line" and len(series) > 1:
+            legend = '<ul class="legend">%s</ul>' % "".join(
+                '<li><span class="swatch sw%d"></span>%s</li>' % (i + 1, esc(name)) for i, (name, _) in enumerate(series))
+        svg = render(labels, series, unit, c)
+        head = "<h3>%s</h3>" % esc(c.get("title") or "")
+        if c.get("subtitle"):
+            head += '<p class="sub">%s</p>' % esc(c["subtitle"])
+        foot = []
+        if c.get("caption") or c.get("cites"):
+            foot.append("<span>%s%s</span>" % (self.rich(c.get("caption") or "Source"), self.chips(c.get("cites"))))
+        foot.append(self.data_table(labels, series, unit, kind))
+        return ('<figure class="chart-card">%s%s<div class="chart-wrap">%s</div><div class="chart-foot">%s</div></figure>'
+                % (head, legend, svg, "".join(foot)))
+
+    def chart_data(self, c: Dict[str, Any], kind: str) -> Tuple[List[str], List[Tuple[str, List[Optional[float]]]]]:
+        def num(v):
+            try:
+                x = float(v)
+                return x if math.isfinite(x) else None
+            except (TypeError, ValueError):
+                return None
+
+        if c.get("series") and c.get("labels"):
+            labels = [str(x) for x in c["labels"]]
+            series = []
+            for s in c["series"][:MAX_SERIES]:
+                vals = [num(v) for v in (s.get("values") or [])][: len(labels)]
+                vals += [None] * (len(labels) - len(vals))
+                series.append((str(s.get("name") or ""), vals))
+            if len(c["series"]) > MAX_SERIES:
+                self.warnings.append("Chart %r: only the first %d series are drawn." % (c.get("title"), MAX_SERIES))
+            return labels, series
+        rows = [d for d in (c.get("data") or []) if isinstance(d, dict) and num(d.get("value")) is not None]
+        labels = [str(d.get("label", "")) for d in rows]
+        values = [num(d["value"]) for d in rows]
+        if kind in ("donut", "pie"):
+            keep = [(l, v) for l, v in zip(labels, values) if v > 0]
+            if len(keep) > MAX_SERIES:  # fold the tail into "Other", never invent a 9th color
+                other = sum(v for _, v in keep[MAX_SERIES - 1:])
+                keep = keep[: MAX_SERIES - 1] + [("Other", other)]
+            labels, values = [l for l, _ in keep], [v for _, v in keep]
+        return labels, [(str(c.get("title") or ""), values)]
+
+    def data_table(self, labels, series, unit, kind) -> str:
+        head = "<tr><th></th>%s</tr>" % "".join("<th>%s</th>" % esc(n or "Value") for n, _ in series)
+        rows = "".join("<tr><td>%s</td>%s</tr>" % (esc(l), "".join(
+            '<td class="num">%s</td>' % ("" if vals[i] is None else esc(with_unit(fmt_num(vals[i]), unit)))
+            for _, vals in series)) for i, l in enumerate(labels))
+        return '<details class="data"><summary>Show data</summary><table>%s%s</table></details>' % (head, rows)
+
+    @staticmethod
+    def _svg(w: int, h: int, label: str, body: str) -> str:
+        return ('<svg class="chart" viewBox="0 0 %d %d" role="img" aria-label="%s" '
+                'xmlns="http://www.w3.org/2000/svg">%s</svg>' % (w, h, esc(label), body))
+
+    def _y_axis(self, ticks, y, left, right_x) -> str:
+        out = []
+        for t in ticks:
+            cls = "axis" if t == 0 else "grid"
+            out.append('<line class="%s" x1="%d" x2="%d" y1="%s" y2="%s"/>' % (cls, left, right_x, _n(y(t)), _n(y(t))))
+            out.append('<text class="tick" x="%d" y="%s" text-anchor="end">%s</text>'
+                       % (left - 8, _n(y(t) + 4), esc(fmt_num(t, compact=True))))
+        return "".join(out)
+
+    def svg_bar(self, labels, series, unit, c) -> str:
+        values = series[0][1]
+        W, H, left, right, top, bottom = 680, 300, 48, 8, 26, 46
+        pw, ph = W - left - right, H - top - bottom
+        ticks = nice_ticks(min(0.0, min(values)), max(0.0, max(values)))
+        lo, hi = ticks[0], ticks[-1]
+        y = lambda v: top + (hi - v) / (hi - lo) * ph  # noqa: E731
+        band = pw / len(values)
+        bw = min(24.0, band * 0.62)
+        label_all = len(values) <= 12
+        extremes = {values.index(max(values)), len(values) - 1}
+        out = [self._y_axis(ticks, y, left, W - right)]
+        max_chars = max(3, int(band / 7))
+        for i, (lab, v) in enumerate(zip(labels, values)):
+            bx = left + band * i
+            x = bx + (band - bw) / 2
+            text = with_unit(fmt_num(v), unit)
+            g = ['<g class="pt"><title>%s: %s</title>' % (esc(lab), esc(text)),
+                 '<rect class="hit" x="%s" y="%d" width="%s" height="%d"/>' % (_n(bx), top, _n(band), ph),
+                 '<path class="mark f1" d="%s"/>' % _col_path(x, bw, y(0), y(v))]
+            if label_all or i in extremes:
+                ty = y(v) - 7 if v >= 0 else y(v) + 16
+                g.append('<text class="val" x="%s" y="%s" text-anchor="middle">%s</text>' % (_n(x + bw / 2), _n(ty), esc(text)))
+            for j, line in enumerate(wrap_label(lab, max_chars)):
+                g.append('<text class="lbl" x="%s" y="%d" text-anchor="middle">%s</text>'
+                         % (_n(bx + band / 2), H - bottom + 20 + 15 * j, esc(line)))
+            g.append("</g>")
+            out.append("".join(g))
+        return self._svg(W, H, c.get("title") or "Bar chart", "".join(out))
+
+    def svg_hbar(self, labels, series, unit, c) -> str:
+        values = series[0][1]
+        W, row, bar_h, pad_right = 680, 48, 16, 96
+        H = row * len(values) + 4
+        lo, hi = min(0.0, min(values)), max(0.0, max(values))
+        if hi == lo:
+            hi = lo + 1
+        x = lambda v: (v - lo) / (hi - lo) * (W - pad_right)  # noqa: E731
+        out = []
+        for i, (lab, v) in enumerate(zip(labels, values)):
+            y0 = i * row
+            text = with_unit(fmt_num(v), unit)
+            vx = x(v) + 8 if v >= 0 else x(v) - 8
+            anchor = "start" if v >= 0 else "end"
+            out.append(''.join([
+                '<g class="pt"><title>%s: %s</title>' % (esc(lab), esc(text)),
+                '<rect class="hit" x="0" y="%d" width="%d" height="%d"/>' % (y0, W, row),
+                '<text class="lbl" x="%s" y="%d">%s</text>' % (_n(x(0)), y0 + 15, esc(wrap_label(lab, 80, 1)[0])),
+                '<path class="mark f1" d="%s"/>' % _row_path(y0 + 23, bar_h, x(0), x(v)),
+                '<text class="val" x="%s" y="%d" text-anchor="%s">%s</text>' % (_n(vx), y0 + 36, anchor, esc(text)),
+                "</g>"]))
+        if lo < 0:
+            out.append('<line class="axis" x1="%s" x2="%s" y1="0" y2="%d"/>' % (_n(x(0)), _n(x(0)), H))
+        return self._svg(W, H, c.get("title") or "Bar chart", "".join(out))
+
+    def svg_line(self, labels, series, unit, c) -> str:
+        W, H, left, right, top, bottom = 680, 300, 48, 64, 16, 34
+        pw, ph = W - left - right, H - top - bottom
+        allv = [v for _, vals in series for v in vals if v is not None]
+        if not allv:
+            return ""
+        ticks = nice_ticks(min(0.0, min(allv)), max(0.0, max(allv)))
+        lo, hi = ticks[0], ticks[-1]
+        n = len(labels)
+        x = lambda i: left + (pw / 2 if n == 1 else i * pw / (n - 1))  # noqa: E731
+        y = lambda v: top + (hi - v) / (hi - lo) * ph  # noqa: E731
+        out = [self._y_axis(ticks, y, left, W - right)]
+        every = max(1, math.ceil(n / 8))
+        for i, lab in enumerate(labels):
+            if i % every == 0 or i == n - 1:
+                out.append('<text class="tick" x="%s" y="%d" text-anchor="middle">%s</text>'
+                           % (_n(x(i)), H - 10, esc(wrap_label(lab, 12, 1)[0])))
+        end_labels = []
+        for k, (name, vals) in enumerate(series):
+            cls = k + 1
+            segs, cur = [], []
+            for i, v in enumerate(vals):
+                if v is None:
+                    if cur:
+                        segs.append(cur)
+                    cur = []
+                else:
+                    cur.append((x(i), y(v)))
+            if cur:
+                segs.append(cur)
+            for seg in segs:
+                if len(seg) > 1:
+                    out.append('<path class="line k%d" d="M%s"/>' % (cls, "L".join("%s %s" % (_n(a), _n(b)) for a, b in seg)))
+            show_dots = n <= 12
+            last = max((i for i, v in enumerate(vals) if v is not None), default=None)
+            for i, v in enumerate(vals):
+                if v is None:
+                    continue
+                text = with_unit(fmt_num(v), unit)
+                tip = "%s%s: %s" % (name + ", " if name else "", labels[i], text)
+                dot = '<circle class="mark dot f%d" cx="%s" cy="%s" r="4"/>' % (cls, _n(x(i)), _n(y(v))) \
+                    if show_dots or i == last else ""
+                out.append('<g class="pt"><title>%s</title><circle class="hit" cx="%s" cy="%s" r="11"/>%s</g>'
+                           % (esc(tip), _n(x(i)), _n(y(v)), dot))
+            if last is not None:
+                end_labels.append((y(vals[last]), with_unit(fmt_num(vals[last], compact=True), unit), x(last)))
+        placed = []  # type: List[float]
+        for ly, text, lx in sorted(end_labels):
+            if all(abs(ly - p) >= 15 for p in placed):  # colliding labels: legend + tooltip carry it
+                placed.append(ly)
+                out.append('<text class="val" x="%s" y="%s">%s</text>' % (_n(lx + 9), _n(ly + 4), esc(text)))
+        return self._svg(W, H, c.get("title") or "Line chart", "".join(out))
+
+    def svg_donut(self, labels, series, unit, c) -> str:
+        values = series[0][1]
+        total = sum(values)
+        W, H, cx, cy, r, sw = 680, max(240, 32 * len(values) + 24), 120, 0, 84, 30
+        cy = H / 2
+        circ = 2 * math.pi * r
+        gap = 2.0 if len(values) > 1 else 0.0
+        out, start = [], 0.0
+        for i, (lab, v) in enumerate(zip(labels, values)):
+            seg = v / total * circ
+            text = with_unit(fmt_num(v), unit)
+            out.append('<g class="pt"><title>%s: %s (%s%%)</title><circle class="mark k%d" cx="%d" cy="%s" r="%d" '
+                       'fill="none" stroke-width="%d" stroke-dasharray="%s %s" stroke-dashoffset="%s" '
+                       'transform="rotate(-90 %d %s)"/></g>'
+                       % (esc(lab), esc(text), fmt_num(v / total * 100), i + 1, cx, _n(cy), r, sw,
+                          _n(max(seg - gap, 0.5)), _n(circ), _n(-start), cx, _n(cy)))
+            start += seg
+        center = c.get("center_label") or "total"
+        big = c.get("center_value") or fmt_num(total, compact=True)
+        out.append('<text class="big" x="%d" y="%s" text-anchor="middle">%s</text>' % (cx, _n(cy + 6), esc(big)))
+        out.append('<text class="tick" x="%d" y="%s" text-anchor="middle">%s</text>' % (cx, _n(cy + 26), esc(center)))
+        ly = cy - (len(values) * 32) / 2 + 8
+        for i, (lab, v) in enumerate(zip(labels, values)):
+            yy = ly + i * 32
+            out.append('<rect class="f%d" x="260" y="%s" width="12" height="12" rx="3"/>' % (i + 1, _n(yy)))
+            out.append('<text class="lbl" x="282" y="%s">%s</text>' % (_n(yy + 11), esc(wrap_label(lab, 34, 1)[0])))
+            out.append('<text class="val" x="672" y="%s" text-anchor="end">%s · %s%%</text>'
+                       % (_n(yy + 11), esc(with_unit(fmt_num(v), unit)), fmt_num(round(v / total * 100, 1))))
+        return self._svg(W, int(H), c.get("title") or "Donut chart", "".join(out))
+
+    # -- page sections
+
+    def hero(self) -> str:
+        s = self.spec
+        claims = [c for c in (s.get("claims") or []) if isinstance(c, dict)]
+        counts = s.get("counts") or {}
+        verified = counts.get("claims_verified", sum(1 for c in claims if status_key(c.get("status")) == "verified"))
+        stats = [(counts.get("sources_read", len(self.sources)), "sources read"),
+                 (verified, "claims verified")]
+        if counts.get("sources_found"):
+            stats.insert(0, (counts["sources_found"], "sources found"))
+        if counts.get("searches"):
+            stats.insert(0, (counts["searches"], "searches"))
+        mode = str(s.get("mode") or "advanced").strip().lower()
+        date = s.get("date") or datetime.now().strftime("%Y-%m-%d")
+        out = ["<header>"]
+        if s.get("notice"):
+            out.append('<p class="notice">%s</p>' % self.rich(s["notice"]))
+        out.append('<div class="eyebrow"><span>Research report</span><span class="mode">%s mode</span>'
+                   '<time datetime="%s">%s</time></div>' % (esc(mode.capitalize()), esc(date), esc(fmt_date(date))))
+        out.append("<h1>%s</h1>" % esc(s["title"]))
+        if s.get("question"):
+            out.append('<p class="question">%s</p>' % esc(s["question"]))
+        if s.get("tldr"):
+            out.append('<p class="tldr"><span class="label">The short answer</span>%s</p>' % self.item(s["tldr"]))
+        out.append('<div class="counts">%s</div>' % "".join(
+            '<div class="count"><b>%s</b><span>%s</span></div>' % (esc(fmt_num(v)), esc(label)) for v, label in stats))
+        out.append("</header>")
+        return "".join(out)
+
+    def takeaways(self) -> str:
+        items = self.spec.get("takeaways") or []
+        if not items:
+            return ""
+        return ('<section id="takeaways"><div class="kicker">Key takeaways</div><h2>What you need to know</h2>'
+                '<ol class="takeaways">%s</ol></section>' % "".join("<li>%s</li>" % self.item(t) for t in items))
+
+    def numbers(self) -> str:
+        nums = self.spec.get("numbers") or {}
+        stats = [x for x in (nums.get("stats") or []) if isinstance(x, dict)]
+        charts = [self.chart(c) for c in (nums.get("charts") or []) if isinstance(c, dict)]
+        charts = [c for c in charts if c]
+        if not stats and not charts:
+            return ""
+        out = ['<section id="numbers"><div class="kicker">By the numbers</div><h2>%s</h2>'
+               % esc(nums.get("heading") or "The key figures")]
+        if nums.get("intro"):
+            out.append('<p class="lede">%s</p>' % self.rich(nums["intro"]))
+        if stats:
+            cards = []
+            for st in stats:
+                unit = st.get("unit")
+                value = fmt_num(st.get("value"), compact=not isinstance(st.get("value"), str))
+                if unit and unit[0] in "$€£¥₹":
+                    value, unit = unit[0] + value, unit[1:]
+                cards.append('<div class="stat"><div class="label">%s</div><div class="value">%s%s</div>'
+                             '<div class="note">%s%s</div></div>'
+                             % (esc(st.get("label")), esc(value), "<small>%s</small>" % esc(unit) if unit else "",
+                                self.rich(st.get("note") or ""), self.chips(st.get("cites"))))
+            out.append('<div class="stats">%s</div>' % "".join(cards))
+        out.extend(charts)
+        out.append("</section>")
+        return "".join(out)
+
+    def image(self, im: Dict[str, Any]) -> str:
+        src = safe_url(im.get("url"))
+        if not src:
+            if im.get("url"):
+                self.warnings.append("Image skipped (not an http(s) URL): %r" % str(im.get("url"))[:80])
+            return ""
+        cap = self.rich(im.get("caption") or "")
+        credit = im.get("credit")
+        if credit:
+            link = safe_url(im.get("credit_url"))
+            credit = '<a href="%s" rel="noopener noreferrer" target="_blank">%s</a>' % (esc(link), esc(credit)) if link else esc(credit)
+            cap += ' <span class="credit">Image: %s</span>' % credit
+        cap += self.chips(im.get("source"))
+        return ('<figure class="img"><img src="%s" alt="%s" loading="lazy" decoding="async" referrerpolicy="no-referrer" '
+                'onerror="this.parentNode.style.display=\'none\'">%s</figure>'
+                % (esc(src), esc(im.get("alt") or im.get("caption") or ""), "<figcaption>%s</figcaption>" % cap if cap else ""))
+
+    def sections(self) -> str:
+        out = []
+        for i, sec in enumerate(self.spec.get("sections") or []):
+            if not isinstance(sec, dict):
+                continue
+            body = ["<p>%s</p>" % self.item(p) for p in (sec.get("paragraphs") or [])]
+            images = [self.image(im) for im in (sec.get("images") or []) if isinstance(im, dict)]
+            # put the first image after the first paragraph, the rest at the end
+            if images and body:
+                body = body[:1] + images[:1] + body[1:] + images[1:]
+            else:
+                body += images
+            kicker = '<div class="kicker">%s</div>' % esc(sec["kicker"]) if sec.get("kicker") else ""
+            out.append('<section class="section" id="section-%d">%s<h2>%s</h2>%s</section>'
+                       % (i + 1, kicker, esc(sec.get("heading") or ""), "".join(body)))
+        return "".join(out)
+
+    def tag(self, key: str) -> str:
+        cls, icon, label, _ = STATUSES[key]
+        return '<span class="tag %s"><i aria-hidden="true">%s</i>%s</span>' % (cls, icon, label)
+
+    def confidence(self) -> str:
+        claims = [c for c in (self.spec.get("claims") or []) if isinstance(c, dict)
+                  and status_key(c.get("status")) != "unsupported"]
+        if not claims:
+            return ""
+        order = {"verified": 0, "conflicting": 1, "single": 2}
+        claims.sort(key=lambda c: order[status_key(c.get("status"))])
+        legend = "".join("<span>%s %s</span>" % (self.tag(k), esc(STATUSES[k][3])) for k in ("verified", "single", "conflicting"))
+        rows = []
+        for c in claims:
+            note = '<div class="note">%s</div>' % self.rich(c["note"]) if c.get("note") else ""
+            rows.append("<li><div>%s</div>%s%s</li>" % (self.item(c), self.tag(status_key(c.get("status"))), note))
+        return ('<section id="confidence"><div class="kicker">Confidence</div><h2>How sure are we?</h2>'
+                '<div class="legend-status">%s</div><ul class="claims">%s</ul></section>' % (legend, "".join(rows)))
+
+    def unconfirmed(self) -> str:
+        items = list(self.spec.get("unconfirmed") or [])
+        items += [c for c in (self.spec.get("claims") or []) if isinstance(c, dict)
+                  and status_key(c.get("status")) == "unsupported"]
+        if not items:
+            return ""
+        rows = []
+        for it in items:
+            note = '<span class="note">%s</span>' % self.rich(it["note"]) if isinstance(it, dict) and it.get("note") else ""
+            rows.append("<li>%s%s</li>" % (self.item(it), note))
+        return ('<section id="unconfirmed"><div class="kicker">Open questions</div><h2>What we couldn\'t confirm</h2>'
+                '<ul class="unconfirmed">%s</ul></section>' % "".join(rows))
+
+    def source_cards(self) -> str:
+        if not self.sources:
+            return ""
+        cards = []
+        for sid in sorted(self.sources):
+            s = self.sources[sid]
+            url = safe_url(s.get("url"))
+            host = urllib.parse.urlsplit(url).hostname or "" if url else ""
+            site = s.get("site_name") or (host[4:] if host.startswith("www.") else host)
+            letter = (str(site or s.get("title") or "?").strip()[:1] or "?").upper()
+            icon = safe_url(s.get("site_icon"))
+            icon_html = '<img src="%s" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' % esc(icon) if icon else ""
+            title = esc(s.get("title") or url or "Untitled")
+            title_html = '<a href="%s" rel="noopener noreferrer" target="_blank">%s</a>' % (esc(url), title) if url else title
+            meta = []
+            if site:
+                meta.append("<span>%s</span>" % esc(site))
+            if s.get("date"):
+                meta.append('<time datetime="%s">%s</time>' % (esc(str(s["date"])[:10]), esc(fmt_date(s["date"]))))
+            auth = _to_int(s.get("authority"), -1)
+            if auth >= 3:
+                meta.append('<span class="badge high">High authority · %d/4</span>' % auth)
+            elif auth >= 0:
+                meta.append('<span class="badge">Authority %d/4</span>' % auth)
+            else:
+                meta.append('<span class="badge">Authority unknown</span>')
+            cards.append('<li class="source" id="src-%d"><div class="icon" aria-hidden="true">%s%s</div><div>'
+                         '<div class="title"><span class="num">[%d]</span>%s</div><div class="meta">%s</div></div></li>'
+                         % (sid, esc(letter), icon_html, sid, title_html, "".join(meta)))
+        return ('<section id="sources"><div class="kicker">Sources</div><h2>Where this comes from</h2>'
+                '<ol class="sources">%s</ol></section>' % "".join(cards))
+
+    def footer(self) -> str:
+        bits = ["Made with deepseek-research. Web search by DeepSeek."]
+        cost = self.spec.get("cost_usd")
+        if isinstance(cost, (int, float)):
+            bits.append("Research cost about $%s." % fmt_num(round(cost, 3)))
+        bits.append("Generated %s." % fmt_date(datetime.now().strftime("%Y-%m-%d")))
+        return "<footer>%s</footer>" % esc(" ".join(bits))
+
+    def body(self) -> str:
+        return "\n".join(x for x in (self.hero(), self.takeaways(), self.numbers(), self.sections(),
+                                     self.confidence(), self.unconfirmed(), self.source_cards(), self.footer()) if x)
+
+
+def render_template(template: str, values: Dict[str, str]) -> str:
+    """Single-pass {{name}} substitution; inserted content is never re-scanned."""
+    missing = [m for m in PLACEHOLDER.findall(template) if m not in values]
+    if missing:
+        raise DsrError("Template variables without a value: %s" % ", ".join(sorted(set(missing))))
+    return PLACEHOLDER.sub(lambda m: values[m.group(1)], template)
+
+
+def build_report(spec: Dict[str, Any], template: Optional[str] = None) -> Tuple[str, List[str]]:
+    """Return (html, warnings)."""
+    if template is None:
+        template = TEMPLATE_PATH.read_text(encoding="utf-8")
+    b = ReportBuilder(spec)
+    content = b.body()
+    tldr = spec.get("tldr")
+    desc = tldr.get("text", "") if isinstance(tldr, dict) else (tldr or "")
+    out = render_template(template, {
+        "lang": esc(spec.get("lang") or "en"),
+        "title": esc(spec["title"]),
+        "description": esc(CITE_MARK.sub("", str(desc)).strip()),
+        "generator": esc("deepseek-research dsr.py " + __version__),
+        "content": content,
+    })
+    if PLACEHOLDER.search(out):
+        raise DsrError("Report still contains template variables.")
+    return out, sorted(set(b.warnings), key=b.warnings.index)
+
+
+# ---------------------------------------------------------------------------
 # Commands
 
 
@@ -883,6 +1496,20 @@ def cmd_batch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_report(args: argparse.Namespace) -> int:
+    spec = read_json(Path(args.spec), "report spec")
+    page, warnings = build_report(spec)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(page, encoding="utf-8")
+    for w in warnings:
+        print("Warning: " + w, file=sys.stderr)
+    print("Wrote %s (%d KB)" % (out, max(1, len(page.encode("utf-8")) // 1024)))
+    if args.open:
+        webbrowser.open(out.resolve().as_uri())
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="dsr.py", description="Web research with DeepSeek Search & Fetch.")
     p.add_argument("--version", action="version", version="%(prog)s " + __version__)
@@ -921,6 +1548,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--max-fetches", type=int, help="cap on pages to fetch (default: plan max_fetches or 25)")
     s.add_argument("--json", action="store_true", help="print sources.json when done")
     s.set_defaults(func=cmd_batch)
+
+    s = sub.add_parser("report", help="build the HTML report from a report spec")
+    s.add_argument("spec", help="spec.json (see references/report-spec.md)")
+    s.add_argument("--out", required=True, help="output file, e.g. research/<run>/report.html")
+    s.add_argument("--open", action="store_true", help="open the report in the browser")
+    s.set_defaults(func=cmd_report)
 
     return p
 

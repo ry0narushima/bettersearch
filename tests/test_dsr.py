@@ -6,12 +6,14 @@ Run: python3 -m unittest discover tests
 import io
 import json
 import os
+import re
 import stat
 import sys
 import tempfile
 import unittest
 import urllib.error
 from contextlib import redirect_stderr, redirect_stdout
+from html.parser import HTMLParser
 from pathlib import Path
 from unittest import mock
 
@@ -539,6 +541,214 @@ class BatchTests(unittest.TestCase):
         bad.write_text(json.dumps({"queries": []}), encoding="utf-8")
         with self.assertRaises(dsr.DsrError):
             dsr.load_plan(bad)
+
+
+VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+
+
+class TagBalance(HTMLParser):
+    """Minimal well-formedness check: every opened tag is closed in order."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.stack, self.errors, self.tags = [], [], []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.append((tag, dict(attrs)))
+        if tag not in VOID:
+            self.stack.append(tag)
+
+    def handle_startendtag(self, tag, attrs):
+        self.tags.append((tag, dict(attrs)))
+
+    def handle_endtag(self, tag):
+        if tag in VOID:
+            return
+        if not self.stack or self.stack[-1] != tag:
+            self.errors.append("unexpected </%s>, open: %s" % (tag, self.stack[-3:]))
+        else:
+            self.stack.pop()
+
+
+def check_html(test, page):
+    p = TagBalance()
+    p.feed(page)
+    p.close()
+    test.assertEqual(p.errors, [])
+    test.assertEqual(p.stack, [])
+    test.assertIsNone(re.search(r"\{\{\s*\w+\s*\}\}", page), "template variable left in output")
+    test.assertNotIn("<script", page.lower())
+    return p
+
+
+XSS = '<script>alert(1)</script>"><img src=x onerror=alert(2)>{{content}}'
+
+
+def full_spec():
+    return {
+        "title": "EV market " + XSS,
+        "question": "Is the EV market growing?",
+        "date": "2025-06-15",
+        "mode": "advanced",
+        "tldr": {"text": "Yes, sales grew 25% in 2024 [1].", "cites": [2]},
+        "notice": "Example only.",
+        "counts": {"searches": 14, "sources_found": 120, "sources_read": 22},
+        "takeaways": [{"text": "China sold most EVs [1][2].", "cites": [1]}, "Plain string takeaway [3]."],
+        "numbers": {
+            "stats": [{"label": "EVs sold in 2024", "value": 17300000, "unit": "cars", "cites": [1]},
+                      {"label": "Battery pack price", "value": "115", "unit": "$/kWh", "note": "Down 20% [3]"}],
+            "charts": [
+                {"type": "bar", "title": "Sales by year", "unit": "M",
+                 "data": [{"label": "2022", "value": 10}, {"label": "2023", "value": 14},
+                          {"label": "2024", "value": 17.3}], "caption": "IEA", "cites": [1]},
+                {"type": "hbar", "title": "By region", "data": [{"label": "China " + XSS, "value": 11.3},
+                                                                {"label": "Europe", "value": 3.2}]},
+                {"type": "line", "title": "Share", "unit": "%", "labels": ["2021", "2022", "2023", "2024"],
+                 "series": [{"name": "World", "values": [9, 14, 18, 22]},
+                            {"name": "China", "values": [16, 29, None, 48]}]},
+                {"type": "donut", "title": "Mix", "data": [{"label": "BEV", "value": 70}, {"label": "PHEV", "value": 30}]},
+                {"type": "radar", "title": "Unknown"},
+            ]},
+        "sections": [{"heading": "Sales " + XSS, "paragraphs": ["Sales rose **fast** [1].", {"text": "More.", "cites": [2]}],
+                      "images": [{"url": "https://example.com/a.jpg", "caption": "A chart", "credit": "IEA",
+                                  "credit_url": "javascript:alert(1)", "source": 1},
+                                 {"url": "javascript:alert(1)", "caption": "bad"}]}],
+        "claims": [
+            {"text": "17 million EVs sold in 2024", "status": "verified", "source_ids": [1, 2]},
+            {"text": "Prices fell 20%", "status": "single-source", "source_ids": [3], "note": "BNEF only"},
+            {"text": "Europe flat", "status": "conflicting", "source_ids": [1, 4]},
+            {"text": "Unsupported thing", "status": "unsupported"},
+        ],
+        "unconfirmed": ["Full-year 2025 sales.", {"text": "Used-EV prices", "note": "No good data."}],
+        "sources": [
+            {"id": 1, "title": "IEA " + XSS, "url": "https://www.iea.org/reports/global-ev-outlook-2025",
+             "site_name": "IEA", "site_icon": "https://www.iea.org/favicon.ico", "date": "2025-05-14", "authority": 4},
+            {"id": 2, "title": "Second", "url": "https://example.com/2", "authority": 2},
+            {"id": 3, "title": "Evil", "url": "javascript:alert(1)", "site_icon": "data:image/png;base64,xx"},
+        ],
+    }
+
+
+class ReportTests(unittest.TestCase):
+    def setUp(self):
+        self.page, self.warnings = dsr.build_report(full_spec())
+
+    def test_valid_html_no_template_vars(self):
+        p = check_html(self, self.page)
+        self.assertTrue(self.page.startswith("<!DOCTYPE html>"))
+        self.assertIn('<meta name="description" content="Yes, sales grew 25% in 2024 .">', self.page)
+        self.assertEqual(sum(1 for t, _ in p.tags if t == "svg"), 4)  # radar skipped
+
+    def test_html_escaping(self):
+        self.assertNotIn("<script>alert(1)</script>", self.page)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", self.page)
+        self.assertNotIn("<img src=x", self.page)
+        self.assertNotIn("javascript:", self.page)
+        self.assertNotIn("data:image", self.page)
+        self.assertIn("&#123;&#123;content&#125;&#125;", self.page)  # web text can't fake a template var
+        # the only inline handlers are our own image fallbacks
+        handlers = re.findall(r"\son\w+=", self.page)
+        self.assertTrue(all(h.strip() == "onerror=" for h in handlers))
+
+    def test_citations_link_to_source_cards(self):
+        self.assertIn('id="src-1"', self.page)
+        self.assertIn('<a class="cite" href="#src-1"', self.page)
+        self.assertIn('<a class="cite" href="#src-2"', self.page)
+        self.assertIn('<span class="cite missing">4</span>', self.page)
+        self.assertIn("Citation [4] has no matching source.", self.warnings)
+        self.assertIn("<strong>fast</strong>", self.page)
+
+    def test_sections_present(self):
+        for needle in ("The short answer", "What you need to know", "The key figures", "How sure are we?",
+                       "What we couldn't confirm", "Where this comes from", "Advanced mode",
+                       "June 15, 2025", "High authority · 4/4", "Authority unknown", "Example only.",
+                       ">10M</text>"):
+            self.assertTrue(needle in self.page, "missing: " + needle)
+        self.assertIn("<b>22</b><span>sources read</span>", self.page)
+        self.assertIn("<b>1</b><span>claims verified</span>", self.page)
+        self.assertIn("17.3M", self.page)
+        self.assertIn("$115<small>/kWh</small>", self.page)
+
+    def test_unsupported_claims_move_to_unconfirmed(self):
+        conf = self.page.split('id="confidence"')[1].split("</section>")[0]
+        unconf = self.page.split('id="unconfirmed"')[1].split("</section>")[0]
+        self.assertNotIn("Unsupported thing", conf)
+        self.assertIn("Unsupported thing", unconf)
+        self.assertIn("No good data.", unconf)
+        self.assertLess(conf.index("Verified</span>"), conf.index("Single source</span>"))
+
+    def test_images(self):
+        self.assertIn('<img src="https://example.com/a.jpg"', self.page)
+        self.assertIn("onerror=\"this.parentNode.style.display='none'\"", self.page)
+        self.assertIn("Image: IEA", self.page)  # unsafe credit link dropped, text kept
+        self.assertTrue(any("Image skipped" in w for w in self.warnings))
+
+    def test_chart_warnings(self):
+        self.assertTrue(any("radar" in w for w in self.warnings))
+
+    def test_requires_title(self):
+        with self.assertRaises(dsr.DsrError):
+            dsr.build_report({"sources": []})
+
+    def test_minimal_spec(self):
+        page, warnings = dsr.build_report({"title": "Just a title"})
+        check_html(self, page)
+        self.assertEqual(warnings, [])
+        self.assertNotIn('id="sources"', page)
+
+    def test_line_gap_and_donut_fold(self):
+        b = dsr.ReportBuilder({"title": "t"})
+        svg = b.chart({"type": "line", "title": "x", "labels": ["a", "b", "c", "d"],
+                       "series": [{"name": "s", "values": [1, None, 3, 4]}]})
+        self.assertEqual(svg.count('class="line k1"'), 1)  # only c-d is a 2+ point segment
+        donut = b.chart({"type": "donut", "title": "x",
+                         "data": [{"label": "L%d" % i, "value": 10 - i} for i in range(10)]})
+        self.assertIn(">Other<", donut)
+        self.assertNotIn("k9", donut)
+
+    def test_report_cli(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = Path(tmp) / "spec.json"
+            out = Path(tmp) / "nested" / "report.html"
+            spec.write_text(json.dumps(full_spec()), encoding="utf-8")
+            err, stdout = io.StringIO(), io.StringIO()
+            with redirect_stderr(err), redirect_stdout(stdout):
+                code = dsr.main(["report", str(spec), "--out", str(out)])
+            self.assertEqual(code, 0)
+            self.assertTrue(out.exists())
+            self.assertIn("Warning: Citation [4]", err.getvalue())
+
+    def test_template_missing_var(self):
+        with self.assertRaises(dsr.DsrError):
+            dsr.render_template("{{title}} {{nope}}", {"title": "x"})
+        # inserted values are not re-scanned
+        self.assertEqual(dsr.render_template("{{a}}", {"a": "{{b}}"}), "{{b}}")
+
+
+class FormatTests(unittest.TestCase):
+    def test_nice_ticks(self):
+        self.assertEqual(dsr.nice_ticks(0, 17.3), [0, 5, 10, 15, 20])
+        self.assertEqual(dsr.nice_ticks(0, 100), [0, 25, 50, 75, 100])
+        self.assertEqual(dsr.nice_ticks(-3, 7)[0], -5)
+        self.assertEqual(dsr.nice_ticks(0, 0), [0, 0.25, 0.5, 0.75, 1])
+
+    def test_fmt_num(self):
+        self.assertEqual(dsr.fmt_num(17300000, compact=True), "17.3M")
+        self.assertEqual(dsr.fmt_num(1234567), "1,234,567")
+        self.assertEqual(dsr.fmt_num(0.1234), "0.12")
+        self.assertEqual(dsr.fmt_num(1234.56), "1,234.6")
+        self.assertEqual(dsr.fmt_num(48.0), "48")
+        self.assertEqual(dsr.fmt_num("n/a"), "n/a")
+
+    def test_with_unit(self):
+        self.assertEqual(dsr.with_unit("17", "%"), "17%")
+        self.assertEqual(dsr.with_unit("115", "$/kWh"), "$115/kWh")
+        self.assertEqual(dsr.with_unit("17.3", "million"), "17.3 million")
+
+    def test_fmt_date(self):
+        self.assertEqual(dsr.fmt_date("2025-06-15T10:00:00Z"), "June 15, 2025")
+        self.assertEqual(dsr.fmt_date("2025-06"), "June 2025")
+        self.assertEqual(dsr.fmt_date("soon"), "soon")
 
 
 if __name__ == "__main__":
