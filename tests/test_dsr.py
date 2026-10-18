@@ -7,7 +7,9 @@ import io
 import json
 import os
 import re
+import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -760,6 +762,51 @@ class SkillFileTests(unittest.TestCase):
         self.assertLess(len(text.splitlines()), 300)
         for ref in re.findall(r"\]\((references/[\w.-]+)\)", text):
             self.assertTrue((ROOT / ref).exists(), ref)
+
+
+@unittest.skipUnless(shutil.which("bash") and os.name != "nt", "needs bash")
+class InstallScriptTests(unittest.TestCase):
+    def run_install(self, home, *args, cwd=None):
+        env = dict(os.environ, HOME=str(home))
+        return subprocess.run(["bash", str(ROOT / "install.sh")] + list(args), cwd=cwd or str(home), env=env,
+                              capture_output=True, text=True, timeout=60)
+
+    def test_installs_into_found_agent_dirs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            for d in (".claude", ".codex", ".config/opencode"):
+                (home / d).mkdir(parents=True)
+            res = self.run_install(home)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            for d in (".claude/skills", ".codex/skills", ".config/opencode/skills"):
+                skill = home / d / "deepseek-research"
+                self.assertTrue((skill / "SKILL.md").is_file(), d)
+                self.assertTrue((skill / "scripts" / "dsr.py").is_file(), d)
+                self.assertTrue((skill / "references" / "roles.md").is_file(), d)
+                self.assertFalse((skill / "tests").exists(), d)
+            self.assertFalse((home / ".cursor").exists())
+            self.assertIn("dsr.py\" setup", res.stdout)
+            # re-install replaces cleanly, no leftovers
+            (home / ".claude/skills/deepseek-research/stale.txt").write_text("x")
+            res = self.run_install(home)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertEqual(sorted(p.name for p in (home / ".claude/skills").iterdir()), ["deepseek-research"])
+            self.assertFalse((home / ".claude/skills/deepseek-research/stale.txt").exists())
+
+    def test_project_mode_and_dry_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home, proj = Path(tmp) / "home", Path(tmp) / "proj"
+            home.mkdir()
+            (proj / ".cursor").mkdir(parents=True)
+            res = self.run_install(home, "--project", "--dry-run", cwd=str(proj))
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertIn(str(proj / ".claude/skills/deepseek-research"), res.stdout)
+            self.assertIn(str(proj / ".agents/skills/deepseek-research"), res.stdout)
+            self.assertIn(str(proj / ".cursor/skills/deepseek-research"), res.stdout)
+            self.assertFalse((proj / ".claude").exists())  # dry run wrote nothing
+            res = self.run_install(home, "--project", cwd=str(proj))
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertTrue((proj / ".agents/skills/deepseek-research/SKILL.md").is_file())
 
 
 class FormatTests(unittest.TestCase):
