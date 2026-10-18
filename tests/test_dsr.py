@@ -690,6 +690,15 @@ class ReportTests(unittest.TestCase):
         with self.assertRaises(dsr.DsrError):
             dsr.build_report({"sources": []})
 
+    def test_accepts_fact_checker_field_names(self):
+        page, _ = dsr.build_report({
+            "title": "t", "sources": [{"id": 1, "url": "https://a.com"}],
+            "claims": [{"claim": "From claims.json", "status": "verified", "source_ids": [1]}],
+            "unconfirmed": [{"claim": "Dropped one", "reason": "quote not found"}]})
+        self.assertIn("From claims.json", page)
+        self.assertIn("Dropped one", page)
+        self.assertIn("quote not found", page)
+
     def test_minimal_spec(self):
         page, warnings = dsr.build_report({"title": "Just a title"})
         check_html(self, page)
@@ -737,6 +746,20 @@ class ExampleTests(unittest.TestCase):
         page = (ROOT / "examples" / "example-report.html").read_text(encoding="utf-8")
         check_html(self, page)
         self.assertNotIn("cite missing", page)
+
+
+class SkillFileTests(unittest.TestCase):
+    def test_frontmatter_and_triggers(self):
+        text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+        self.assertIsNotNone(m)
+        front = dict(line.split(": ", 1) for line in m.group(1).splitlines())
+        self.assertEqual(front["name"], "deepseek-research")
+        for phrase in ("research", "look up", "search the web", "deep research", "fact check"):
+            self.assertIn(phrase, front["description"].lower())
+        self.assertLess(len(text.splitlines()), 300)
+        for ref in re.findall(r"\]\((references/[\w.-]+)\)", text):
+            self.assertTrue((ROOT / ref).exists(), ref)
 
 
 class FormatTests(unittest.TestCase):

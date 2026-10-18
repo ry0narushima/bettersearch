@@ -969,7 +969,8 @@ class ReportBuilder:
 
     def item(self, it: Any) -> str:
         if isinstance(it, dict):
-            return self.rich(it.get("text", "")) + self.chips(it.get("cites") or it.get("source_ids"))
+            text = it.get("text") or it.get("claim") or ""
+            return self.rich(text) + self.chips(it.get("cites") or it.get("source_ids"))
         return self.rich(it)
 
     # -- charts
@@ -1315,7 +1316,8 @@ class ReportBuilder:
             return ""
         rows = []
         for it in items:
-            note = '<span class="note">%s</span>' % self.rich(it["note"]) if isinstance(it, dict) and it.get("note") else ""
+            note_text = (it.get("note") or it.get("reason")) if isinstance(it, dict) else None
+            note = '<span class="note">%s</span>' % self.rich(note_text) if note_text else ""
             rows.append("<li>%s%s</li>" % (self.item(it), note))
         return ('<section id="unconfirmed"><div class="kicker">Open questions</div><h2>What we couldn\'t confirm</h2>'
                 '<ul class="unconfirmed">%s</ul></section>' % "".join(rows))
