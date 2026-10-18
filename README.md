@@ -5,8 +5,7 @@ Claude Code, Codex, Cursor, Gemini CLI, OpenCode, Hermes and other agents to res
 properly with DeepSeek's Search & Fetch APIs. Small questions get quick answers with sources.
 Big questions get a fact-checked report that looks good enough to send to someone.
 
-![Example report](docs/screenshot.png)
-<!-- Screenshot placeholder: open examples/example-report.html and capture the top of the page. -->
+![The top of the example report: title, short answer, research trail, takeaways and the first chart](docs/screenshot.png)
 
 ## What it does
 
@@ -104,6 +103,7 @@ python3 $dsr report examples/example-spec.json --out /tmp/report.html --open
 | `SKILL.md` | The instructions your agent reads |
 | `scripts/dsr.py` | The CLI: key setup, search, fetch, batch, report |
 | `scripts/report_template.html` | The report design |
+| `scripts/fonts/` | Poppins and Lora, built into every report so it looks right offline |
 | `references/` | Quick mode, advanced mode, role prompts, query tips, report format |
 | `examples/` | An example report spec and the report built from it |
 
@@ -120,3 +120,16 @@ python3 scripts/dsr.py report examples/example-spec.json --out examples/example-
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Credits
+
+The report uses two fonts. Both are in `scripts/fonts/` and are licensed under the
+[SIL Open Font License 1.1](https://openfontlicense.org):
+
+- **Poppins**, copyright 2020 The Poppins Project Authors (Indian Type Foundry).
+  See [scripts/fonts/OFL-Poppins.txt](scripts/fonts/OFL-Poppins.txt).
+- **Lora**, copyright 2011 The Lora Project Authors (Cyreal), Reserved Font Name "Lora".
+  See [scripts/fonts/OFL-Lora.txt](scripts/fonts/OFL-Lora.txt).
+
+The files are Latin-only woff2 subsets. `dsr.py report` builds them into each report as base64,
+so the report needs no internet to look right.

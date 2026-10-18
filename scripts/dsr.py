@@ -13,6 +13,7 @@ Exit codes: 0 ok, 1 error, 2 no key, 3 key rejected, 4 balance too low.
 """
 
 import argparse
+import base64
 import getpass
 import html
 import json
@@ -51,6 +52,7 @@ USER_AGENT = "deepseek-research/" + __version__
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 TEMPLATE_PATH = SCRIPT_DIR / "report_template.html"
+FONT_DIR = SCRIPT_DIR / "fonts"
 
 
 # ---------------------------------------------------------------------------
@@ -794,9 +796,34 @@ STATUSES = {
     "conflicting": ("conflicting", "!", "Conflicting", "Sources disagree. Read the note."),
 }
 CITE_MARK = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
+# A run of citation marks with the word before it and the punctuation after it, kept on one line.
+# The word never includes "*" or tags, so **bold** markers stay outside the no-wrap span.
+CITE_RUN = re.compile(r"([^\s<>*]*)\s*((?:\[\d+(?:\s*,\s*\d+)*\]\s*)*\[\d+(?:\s*,\s*\d+)*\])([.,;:!?)]*)")
 BOLD_MARK = re.compile(r"\*\*(.+?)\*\*")
 PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
 MAX_SERIES = 8
+FONT_FACES = (
+    # (family, file in scripts/fonts, weight, style). Lora is a variable font: one file covers 400-700.
+    ("Lora", "Lora-400.woff2", "400 700", "normal"),
+    ("Lora", "Lora-400-italic.woff2", "400", "italic"),
+    ("Poppins", "Poppins-500.woff2", "500", "normal"),
+    ("Poppins", "Poppins-600.woff2", "600", "normal"),
+)
+
+
+def font_css(font_dir: Optional[Path] = None) -> str:
+    """@font-face rules with the woff2 files inlined as base64, so the report stays one offline file.
+    Missing files are skipped; the CSS font stacks fall back to Georgia and the system sans."""
+    font_dir = FONT_DIR if font_dir is None else font_dir
+    rules = []
+    for family, name, weight, style in FONT_FACES:
+        path = font_dir / name
+        if not path.is_file():
+            continue
+        data = base64.b64encode(path.read_bytes()).decode("ascii")
+        rules.append('@font-face { font-family: "%s"; font-style: %s; font-weight: %s; font-display: swap; '
+                     'src: url(data:font/woff2;base64,%s) format("woff2"); }' % (family, style, weight, data))
+    return "\n".join(rules)
 
 
 def esc(v: Any) -> str:
@@ -959,12 +986,14 @@ class ReportBuilder:
             n = _to_int(re.sub(r"\D", "", str(i)), -1)
             if n >= 0:
                 out.append(self.chip(n))
-        return "".join(out)
+        return '<span class="nw">%s</span>' % "".join(out) if out else ""
 
     def rich(self, text: Any) -> str:
         """Escape, then turn [n] / [n, m] into citation links and **x** into bold."""
-        out = esc(text)
-        out = CITE_MARK.sub(lambda m: "".join(self.chip(int(x)) for x in re.findall(r"\d+", m.group(1))), out)
+        def run(m):
+            chips = "".join(self.chip(int(x)) for x in re.findall(r"\d+", m.group(2)))
+            return '<span class="nw">%s%s%s</span>' % (m.group(1), chips, m.group(3))
+        out = CITE_RUN.sub(run, esc(text))
         return BOLD_MARK.sub(r"<strong>\1</strong>", out)
 
     def item(self, it: Any) -> str:
@@ -1061,7 +1090,7 @@ class ReportBuilder:
         lo, hi = ticks[0], ticks[-1]
         y = lambda v: top + (hi - v) / (hi - lo) * ph  # noqa: E731
         band = pw / len(values)
-        bw = min(24.0, band * 0.62)
+        bw = min(44.0, band * 0.5)
         label_all = len(values) <= 12
         extremes = {values.index(max(values)), len(values) - 1}
         out = [self._y_axis(ticks, y, left, W - right)]
@@ -1187,8 +1216,10 @@ class ReportBuilder:
             yy = ly + i * 32
             out.append('<rect class="f%d" x="260" y="%s" width="12" height="12" rx="3"/>' % (i + 1, _n(yy)))
             out.append('<text class="lbl" x="282" y="%s">%s</text>' % (_n(yy + 11), esc(wrap_label(lab, 34, 1)[0])))
-            out.append('<text class="val" x="672" y="%s" text-anchor="end">%s · %s%%</text>'
-                       % (_n(yy + 11), esc(with_unit(fmt_num(v), unit)), fmt_num(round(v / total * 100, 1))))
+            out.append('<text class="val" x="610" y="%s" text-anchor="end">%s</text>'
+                       '<text class="tick" x="672" y="%s" text-anchor="end">%s%%</text>'
+                       % (_n(yy + 11), esc(with_unit(fmt_num(v), unit)), _n(yy + 11),
+                          fmt_num(round(v / total * 100, 1))))
         return self._svg(W, int(H), c.get("title") or "Donut chart", "".join(out))
 
     # -- page sections
@@ -1225,8 +1256,8 @@ class ReportBuilder:
         items = self.spec.get("takeaways") or []
         if not items:
             return ""
-        return ('<section id="takeaways"><div class="kicker">Key takeaways</div><h2>What you need to know</h2>'
-                '<ol class="takeaways">%s</ol></section>' % "".join("<li>%s</li>" % self.item(t) for t in items))
+        return ('<section id="takeaways"><h2>What you need to know</h2>'
+                '<ul class="takeaways">%s</ul></section>' % "".join("<li>%s</li>" % self.item(t) for t in items))
 
     def numbers(self) -> str:
         nums = self.spec.get("numbers") or {}
@@ -1235,7 +1266,7 @@ class ReportBuilder:
         charts = [c for c in charts if c]
         if not stats and not charts:
             return ""
-        out = ['<section id="numbers"><div class="kicker">By the numbers</div><h2>%s</h2>'
+        out = ['<section id="numbers"><h2>%s</h2>'
                % esc(nums.get("heading") or "The key figures")]
         if nums.get("intro"):
             out.append('<p class="lede">%s</p>' % self.rich(nums["intro"]))
@@ -1305,7 +1336,7 @@ class ReportBuilder:
         for c in claims:
             note = '<div class="note">%s</div>' % self.rich(c["note"]) if c.get("note") else ""
             rows.append("<li><div>%s</div>%s%s</li>" % (self.item(c), self.tag(status_key(c.get("status"))), note))
-        return ('<section id="confidence"><div class="kicker">Confidence</div><h2>How sure are we?</h2>'
+        return ('<section id="confidence"><h2>How sure are we?</h2>'
                 '<div class="legend-status">%s</div><ul class="claims">%s</ul></section>' % (legend, "".join(rows)))
 
     def unconfirmed(self) -> str:
@@ -1319,7 +1350,7 @@ class ReportBuilder:
             note_text = (it.get("note") or it.get("reason")) if isinstance(it, dict) else None
             note = '<span class="note">%s</span>' % self.rich(note_text) if note_text else ""
             rows.append("<li>%s%s</li>" % (self.item(it), note))
-        return ('<section id="unconfirmed"><div class="kicker">Open questions</div><h2>What we couldn\'t confirm</h2>'
+        return ('<section id="unconfirmed"><h2>What we couldn\'t confirm</h2>'
                 '<ul class="unconfirmed">%s</ul></section>' % "".join(rows))
 
     def source_cards(self) -> str:
@@ -1351,7 +1382,7 @@ class ReportBuilder:
             cards.append('<li class="source" id="src-%d"><div class="icon" aria-hidden="true">%s%s</div><div>'
                          '<div class="title"><span class="num">[%d]</span>%s</div><div class="meta">%s</div></div></li>'
                          % (sid, esc(letter), icon_html, sid, title_html, "".join(meta)))
-        return ('<section id="sources"><div class="kicker">Sources</div><h2>Where this comes from</h2>'
+        return ('<section id="sources"><h2>Where this comes from</h2>'
                 '<ol class="sources">%s</ol></section>' % "".join(cards))
 
     def footer(self) -> str:
@@ -1388,6 +1419,7 @@ def build_report(spec: Dict[str, Any], template: Optional[str] = None) -> Tuple[
         "title": esc(spec["title"]),
         "description": esc(CITE_MARK.sub("", str(desc)).strip()),
         "generator": esc("deepseek-research dsr.py " + __version__),
+        "fonts": font_css(),
         "content": content,
     })
     if PLACEHOLDER.search(out):

@@ -3,6 +3,7 @@
 Run: python3 -m unittest discover tests
 """
 
+import base64
 import io
 import json
 import os
@@ -734,6 +735,55 @@ class ReportTests(unittest.TestCase):
             dsr.render_template("{{title}} {{nope}}", {"title": "x"})
         # inserted values are not re-scanned
         self.assertEqual(dsr.render_template("{{a}}", {"a": "{{b}}"}), "{{b}}")
+
+
+class FontTests(unittest.TestCase):
+    FACE = re.compile(r'@font-face \{ font-family: "(\w+)"; font-style: (\w+); font-weight: ([\d ]+); '
+                      r'font-display: swap; src: url\(data:font/woff2;base64,([A-Za-z0-9+/=]+)\) format\("woff2"\); \}')
+
+    def test_fonts_inlined_as_woff2_data_uris(self):
+        page, _ = dsr.build_report({"title": "t"})
+        style = page.split("<style>")[1].split("</style>")[0]
+        faces = self.FACE.findall(style)
+        self.assertEqual([(f, s, w) for f, s, w, _ in faces],
+                         [("Lora", "normal", "400 700"), ("Lora", "italic", "400"),
+                          ("Poppins", "normal", "500"), ("Poppins", "normal", "600")])
+        for _, _, _, data in faces:
+            self.assertEqual(base64.b64decode(data)[:4], b"wOF2")
+        self.assertNotIn("url(http", style)  # offline: no font CDN
+        self.assertNotIn("<link", page)
+
+    def test_variable_lora_embedded_once(self):
+        page, _ = dsr.build_report({"title": "t"})
+        lora = base64.b64encode((ROOT / "scripts" / "fonts" / "Lora-400.woff2").read_bytes()).decode("ascii")
+        self.assertEqual(page.count(lora), 1)
+
+    def test_fallback_stacks(self):
+        page, _ = dsr.build_report({"title": "t"})
+        self.assertIn('--serif: "Lora", Georgia', page)
+        self.assertIn('--sans: "Poppins", system-ui', page)
+
+    def test_missing_fonts_still_render(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(dsr.font_css(Path(tmp)), "")
+            with mock.patch.object(dsr, "FONT_DIR", Path(tmp)):
+                page, warnings = dsr.build_report({"title": "t"})
+        check_html(self, page)
+        self.assertNotIn("@font-face", page)
+        self.assertEqual(warnings, [])
+
+
+class CiteWrapTests(unittest.TestCase):
+    def test_citation_sticks_to_word_and_punctuation(self):
+        b = dsr.ReportBuilder({"title": "t", "sources": [{"id": 1, "url": "https://a.com"},
+                                                         {"id": 2, "url": "https://b.com"}]})
+        out = b.rich("Europe stayed flat [1][2]. Then **more** [1].")
+        self.assertIn('<span class="nw">flat<a class="cite" href="#src-1"', out)
+        self.assertIn('>2</a>.</span>', out)
+        self.assertIn("<strong>more</strong>", out)  # bold markers stay outside the span
+        self.assertIn('<span class="nw"><a class="cite" href="#src-1"', out)
+        page = check_html(self, "<p>%s</p>" % out)
+        self.assertTrue(page.tags)
 
 
 class ExampleTests(unittest.TestCase):
