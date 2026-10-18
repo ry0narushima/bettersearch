@@ -356,5 +356,190 @@ class OutputTests(unittest.TestCase):
         self.assertEqual(data["results"][0]["url"], "https://a.com")
 
 
+class DedupeTests(unittest.TestCase):
+    def test_normalize_url(self):
+        same = ["https://www.Example.com/a/?utm_source=x&id=2#top", "http://example.com/a?id=2",
+                "https://example.com:443/a//?id=2&fbclid=abc"]
+        self.assertEqual(len({dsr.normalize_url(u) for u in same}), 1)
+        self.assertNotEqual(dsr.normalize_url("https://example.com/a?id=2"),
+                            dsr.normalize_url("https://example.com/a?id=3"))
+
+    def test_add_hits_merges_duplicates(self):
+        sources = []
+        q1 = {"query": "q1", "sub_question": "s1"}
+        q2 = {"query": "q2", "sub_question": "s2"}
+        hits = [
+            (dsr.normalize_result(result("https://a.com/x", title="A", authority=2, rerank=1.0)), q1),
+            (dsr.normalize_result(result("https://b.com/", title="B")), q1),
+            (dsr.normalize_result(result("https://www.a.com/x/?utm_medium=m", title="A longer title",
+                                         authority=4, rerank=2.5)), q2),
+        ]
+        new = dsr.add_hits(sources, hits)
+        self.assertEqual(new, 2)
+        self.assertEqual([s["id"] for s in sources], [1, 2])
+        a = sources[0]
+        self.assertEqual(a["authority"], 4)
+        self.assertEqual(a["rerank_score"], 2.5)
+        self.assertEqual(a["title"], "A longer title")
+        self.assertEqual(a["sub_questions"], ["s1", "s2"])
+        self.assertEqual(a["queries"], ["q1", "q2"])
+        # ids stay stable when more hits arrive
+        dsr.add_hits(sources, [(dsr.normalize_result(result("https://c.com")), q1)])
+        self.assertEqual([s["id"] for s in sources], [1, 2, 3])
+
+    def test_pick_fetches_covers_each_sub_question(self):
+        sources = []
+        hits = [(dsr.normalize_result(result("https://s1-%d.com" % i, rerank=2.9 - i * 0.1)),
+                 {"query": "a", "sub_question": "s1"}) for i in range(5)]
+        hits.append((dsr.normalize_result(result("https://s2.com", authority=0, rerank=0.2)),
+                     {"query": "b", "sub_question": "s2"}))
+        dsr.add_hits(sources, hits)
+        picked = dsr.pick_fetches(sources, limit=3)
+        urls = [s["url"] for s in picked]
+        self.assertEqual(len(urls), 3)
+        self.assertIn("https://s2.com", urls)  # weak but the only source for s2
+        self.assertEqual(urls[0], "https://s1-0.com")
+
+    def test_extract_images(self):
+        md = ("![Chart of sales](https://cdn.x.com/chart.png) ![](https://x.com/logo.png) "
+              "![pixel](https://t.x.com/pixel.gif) ![Photo](<https://cdn.x.com/p.jpg> \"cap\")")
+        self.assertEqual(dsr.extract_images(md), [
+            {"url": "https://cdn.x.com/chart.png", "alt": "Chart of sales"},
+            {"url": "https://cdn.x.com/p.jpg", "alt": "Photo"},
+        ])
+
+
+class BatchTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.run_dir = Path(self.tmp.name) / "research" / "ev-20250615-1200"
+        self.calls = []
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def fake_urlopen(self, req, timeout):
+        body = json.loads(req.data)
+        self.calls.append((req.full_url, body))
+        if req.full_url == dsr.SEARCH_URL:
+            if body["query"] == "broken":
+                raise http_error(400)
+            return FakeResponse({"results": [
+                result("https://iea.org/report", title="IEA", authority=4, rerank=2.8),
+                result("https://news.com/%s" % body["query"].replace(" ", "-"), title=body["query"],
+                       authority=2, rerank=1.2),
+            ]})
+        if body["url"].startswith("https://news.com/q2"):
+            return FakeResponse({"title": "", "content": ""})
+        return FakeResponse({"title": "Page " + body["url"],
+                             "content": "Some text.\n![Sales chart](https://cdn.iea.org/sales.png)"})
+
+    def run_plan(self, plan, **kw):
+        client, _ = make_client()
+        with mock.patch.object(dsr.urllib.request, "urlopen", side_effect=self.fake_urlopen):
+            return dsr.run_batch(plan, self.run_dir, client, log=lambda m: None, **kw)
+
+    def test_batch_end_to_end(self):
+        plan_path = Path(self.tmp.name) / "plan.json"
+        plan_path.write_text(json.dumps({
+            "question": "Is the EV market growing?",
+            "sub_questions": [{"id": "s1", "text": "Sales"}, {"id": "s2", "text": "Prices"}],
+            "queries": [{"query": "q1", "count": 30, "sub_question": "s1"},
+                        {"query": "q2", "count": 99, "sub_question": "s2"},
+                        "broken"],
+        }), encoding="utf-8")
+        summary = self.run_plan(dsr.load_plan(plan_path))
+        data = json.loads((self.run_dir / "sources.json").read_text(encoding="utf-8"))
+
+        search_bodies = [b for u, b in self.calls if u == dsr.SEARCH_URL]
+        self.assertEqual({b["query"] for b in search_bodies}, {"q1", "q2", "broken"})
+        self.assertTrue(all(b["ori_question"] == "Is the EV market growing?" for b in search_bodies))
+        self.assertEqual(max(b["count"] for b in search_bodies), 50)
+
+        urls = [s["url"] for s in data["sources"]]
+        self.assertEqual(len(urls), 3)  # iea.org deduped across both queries
+        self.assertEqual(len(set(urls)), 3)
+        iea = data["sources"][0]
+        self.assertEqual(iea["sub_questions"], ["s1", "s2"])
+        self.assertTrue(iea["fetched"])
+        raw = (self.run_dir / iea["raw_file"]).read_text(encoding="utf-8")
+        self.assertIn("Some text.", raw)
+        self.assertIn("source 1", raw)
+        self.assertEqual(iea["images"][0]["url"], "https://cdn.iea.org/sales.png")
+
+        empty = [s for s in data["sources"] if s["url"].startswith("https://news.com/q2")][0]
+        self.assertFalse(empty["fetched"])
+        self.assertEqual(empty["fetch_error"], "empty page")
+
+        self.assertEqual(summary["searches_ok"], 2)
+        self.assertEqual(summary["searches_failed"], 1)
+        self.assertEqual(summary["fetched"], 2)
+        self.assertEqual([s["error"] is None for s in data["searches"]], [True, True, False])
+        self.assertEqual(data["billing"]["search_requests"], 2)
+        self.assertEqual(data["billing"]["fetch_requests"], 2)
+        self.assertAlmostEqual(data["billing"]["estimated_usd"], 0.003)
+        self.assertNotIn("_content", json.dumps(data))
+        self.assertNotIn(FAKE_KEY, json.dumps(data))
+
+    def test_fetch_cap(self):
+        plan = {"queries": [{"query": "q%d" % i, "count": 10, "sub_question": None, "need_content": False}
+                            for i in range(6)], "fetch_urls": []}
+        self.run_plan(plan, max_fetches=3)
+        fetches = [b for u, b in self.calls if u == dsr.FETCH_URL]
+        self.assertEqual(len(fetches), 3)
+
+    def test_follow_up_round_appends(self):
+        plan = {"question": "Q", "queries": [{"query": "q1", "count": 10, "sub_question": "s1",
+                                               "need_content": False}], "fetch_urls": []}
+        self.run_plan(plan)
+        before = json.loads((self.run_dir / "sources.json").read_text(encoding="utf-8"))
+        self.calls.clear()
+        follow = {"queries": [{"query": "q1", "count": 10, "sub_question": "s1", "need_content": False},
+                              {"query": "q3", "count": 10, "sub_question": "s3", "need_content": False}],
+                  "fetch_urls": []}
+        summary = self.run_plan(follow)
+        after = json.loads((self.run_dir / "sources.json").read_text(encoding="utf-8"))
+        self.assertEqual([b["query"] for u, b in self.calls if u == dsr.SEARCH_URL], ["q3"])
+        self.assertEqual(summary["round"], 2)
+        self.assertEqual(after["question"], "Q")
+        stable = lambda ss: [(s["id"], s["url"], s["raw_file"]) for s in ss[:2]]  # noqa: E731
+        self.assertEqual(stable(after["sources"]), stable(before["sources"]))
+        self.assertEqual(after["sources"][0]["sub_questions"], ["s1", "s3"])  # merged, not duplicated
+        self.assertEqual(len(after["sources"]), 3)
+        fetched_urls = [b["url"] for u, b in self.calls if u == dsr.FETCH_URL]
+        self.assertNotIn("https://iea.org/report", fetched_urls)  # not fetched twice
+
+    def test_search_content_skips_fetch(self):
+        def urlopen(req, timeout):
+            body = json.loads(req.data)
+            self.calls.append((req.full_url, body))
+            return FakeResponse({"results": [result("https://a.com", content="Full text here")]})
+
+        client, _ = make_client()
+        plan = {"queries": [{"query": "q", "count": 5, "sub_question": None, "need_content": True}],
+                "fetch_urls": []}
+        with mock.patch.object(dsr.urllib.request, "urlopen", side_effect=urlopen):
+            dsr.run_batch(plan, self.run_dir, client, log=lambda m: None)
+        self.assertEqual([u for u, b in self.calls], [dsr.SEARCH_URL])
+        self.assertIn("Full text here", (self.run_dir / "raw" / "001.md").read_text(encoding="utf-8"))
+
+    def test_auth_error_aborts(self):
+        client, _ = make_client()
+        plan = {"queries": [{"query": "q", "count": 5, "sub_question": None, "need_content": False}],
+                "fetch_urls": []}
+        with mock.patch.object(dsr.urllib.request, "urlopen", side_effect=http_error(401)):
+            with self.assertRaises(dsr.AuthError):
+                dsr.run_batch(plan, self.run_dir, client, log=lambda m: None)
+
+    def test_plan_validation(self):
+        bad = Path(self.tmp.name) / "bad.json"
+        bad.write_text(json.dumps({"queries": [{"query": "x" * 200}]}), encoding="utf-8")
+        with self.assertRaises(dsr.DsrError):
+            dsr.load_plan(bad)
+        bad.write_text(json.dumps({"queries": []}), encoding="utf-8")
+        with self.assertRaises(dsr.DsrError):
+            dsr.load_plan(bad)
+
+
 if __name__ == "__main__":
     unittest.main()

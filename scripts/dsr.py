@@ -467,6 +467,319 @@ def print_json(data: Any) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2))
 
 
+def write_json(path: Path, data: Any) -> None:
+    """Write JSON atomically (temp file + rename)."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(str(tmp), str(path))
+
+
+def read_json(path: Path, what: str) -> Any:
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except OSError as e:
+        raise DsrError("Can't read %s %s: %s" % (what, path, e.strerror or e))
+    except ValueError as e:
+        raise DsrError("%s %s is not valid JSON: %s" % (what.capitalize(), path, e))
+
+
+# ---------------------------------------------------------------------------
+# Batch: many searches + fetches into a run directory
+
+TRACKING_PARAMS = re.compile(r"^(utm_\w+|fbclid|gclid|mc_cid|mc_eid|ref|ref_src|spm)$", re.IGNORECASE)
+IMAGE_MD = re.compile(r"!\[([^\]]*)\]\(\s*<?(https?://[^)\s>]+)>?(?:\s+[\"'][^)]*[\"'])?\s*\)")
+IMAGE_SKIP = re.compile(r"(logo|icon|sprite|avatar|pixel|badge|spacer|emoji|\.svg|\.gif)(\?|$|[/_.-])", re.IGNORECASE)
+
+
+def normalize_url(url: str) -> str:
+    """Key used to dedupe sources: same page => same key."""
+    p = urllib.parse.urlsplit((url or "").strip())
+    scheme = p.scheme.lower()
+    host = (p.hostname or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    port = p.port if p.port and p.port not in (80, 443) else None
+    netloc = host + (":%d" % port if port else "")
+    path = re.sub(r"/{2,}", "/", p.path or "/")
+    if len(path) > 1:
+        path = path.rstrip("/")
+    query = urllib.parse.urlencode(
+        [(k, v) for k, v in urllib.parse.parse_qsl(p.query, keep_blank_values=True) if not TRACKING_PARAMS.match(k)])
+    if scheme in ("http", "https"):
+        scheme = "https"
+    return urllib.parse.urlunsplit((scheme, netloc, path, query, ""))
+
+
+def extract_images(markdown: str, limit: int = 6) -> List[Dict[str, str]]:
+    """Content images from fetched Markdown (skips logos, icons, tracking pixels)."""
+    out, seen = [], set()
+    for alt, url in IMAGE_MD.findall(markdown or ""):
+        if url in seen or IMAGE_SKIP.search(url):
+            continue
+        seen.add(url)
+        out.append({"url": url, "alt": alt.strip()})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def load_plan(path: Path) -> Dict[str, Any]:
+    plan = read_json(path, "plan")
+    if not isinstance(plan, dict):
+        raise DsrError("The plan must be a JSON object. See references/advanced-mode.md.")
+    queries = []
+    for i, q in enumerate(plan.get("queries") or []):
+        if isinstance(q, str):
+            q = {"query": q}
+        if not isinstance(q, dict) or not str(q.get("query") or "").strip():
+            raise DsrError("Plan query #%d has no \"query\" text." % (i + 1))
+        query = str(q["query"]).strip()
+        if len(query) > MAX_QUERY_CHARS:
+            raise DsrError("Plan query #%d is longer than %d characters: %r" % (i + 1, MAX_QUERY_CHARS, query[:60]))
+        queries.append({
+            "query": query,
+            "count": max(1, min(50, _to_int(q.get("count"), 20))),
+            "sub_question": q.get("sub_question"),
+            "need_content": bool(q.get("need_content", False)),
+        })
+    fetch_urls = [u for u in (plan.get("fetch_urls") or []) if isinstance(u, str)]
+    if not queries and not fetch_urls:
+        raise DsrError("The plan has no queries.")
+    plan["queries"] = queries
+    plan["fetch_urls"] = fetch_urls
+    return plan
+
+
+def source_score(s: Dict[str, Any]) -> float:
+    """Rank for fetching: rerank score, plus a bonus for authority."""
+    return _to_float(s.get("rerank_score")) + 0.5 * max(_to_int(s.get("authority")), 0)
+
+
+def add_hits(sources: List[Dict[str, Any]], hits: List[Tuple[Dict[str, Any], Dict[str, Any]]]) -> int:
+    """Merge search hits into sources, deduped by URL. Returns how many sources are new.
+
+    Each hit is (result, query_info). Duplicates keep the best scores, the longest
+    text fields, and remember every query and sub-question that found them.
+    """
+    index = {normalize_url(s["url"]): s for s in sources}
+    next_id = max([s["id"] for s in sources] or [0]) + 1
+    new = 0
+    for r, q in hits:
+        if not r.get("url"):
+            continue
+        key = normalize_url(r["url"])
+        s = index.get(key)
+        if s is None:
+            s = {"id": next_id, "url": r["url"], "title": r["title"], "site_name": r["site_name"],
+                 "site_icon": r["site_icon"], "date": r["date"], "authority": r["authority"],
+                 "rerank_score": r["rerank_score"], "snippet": r["snippet"], "summary": r["summary"],
+                 "sub_questions": [], "queries": [], "fetched": False, "raw_file": None,
+                 "content_chars": 0, "images": [], "fetch_error": None}
+            if r.get("content"):
+                s["_content"] = r["content"]
+            index[key] = s
+            sources.append(s)
+            next_id += 1
+            new += 1
+        else:
+            s["authority"] = max(s["authority"], r["authority"])
+            s["rerank_score"] = max(s["rerank_score"], r["rerank_score"])
+            for f in ("title", "snippet", "summary"):
+                if len(r.get(f) or "") > len(s.get(f) or ""):
+                    s[f] = r[f]
+            for f in ("site_name", "site_icon", "date"):
+                s[f] = s.get(f) or r.get(f)
+            if r.get("content") and not s.get("fetched") and not s.get("_content"):
+                s["_content"] = r["content"]
+        if q.get("sub_question") and q["sub_question"] not in s["sub_questions"]:
+            s["sub_questions"].append(q["sub_question"])
+        if q["query"] not in s["queries"]:
+            s["queries"].append(q["query"])
+    return new
+
+
+def pick_fetches(sources: List[Dict[str, Any]], limit: int, per_sub_question: int = 2) -> List[Dict[str, Any]]:
+    """Choose pages to fetch: the best couple per sub-question first, then best overall."""
+    ranked = sorted((s for s in sources if not s.get("fetched") and not s.get("_content")
+                     and not s.get("fetch_error") and urllib.parse.urlsplit(s["url"]).scheme in ("http", "https")),
+                    key=lambda s: (-source_score(s), s["id"]))
+    picked, seen = [], set()
+    subs = []
+    for s in ranked:
+        for sq in s["sub_questions"]:
+            if sq not in subs:
+                subs.append(sq)
+    for sq in subs:
+        n = 0
+        for s in ranked:
+            if n >= per_sub_question or len(picked) >= limit:
+                break
+            if sq in s["sub_questions"] and s["id"] not in seen:
+                picked.append(s)
+                seen.add(s["id"])
+                n += 1
+    for s in ranked:
+        if len(picked) >= limit:
+            break
+        if s["id"] not in seen:
+            picked.append(s)
+            seen.add(s["id"])
+    return picked
+
+
+def _raw_name(source_id: int) -> str:
+    return "raw/%03d.md" % source_id
+
+
+def _write_raw(run_dir: Path, s: Dict[str, Any], title: str, content: str) -> None:
+    header = "<!-- source %d | %s | fetched %s -->\n# %s\n\n" % (s["id"], s["url"], now_iso(), title or s["title"])
+    (run_dir / _raw_name(s["id"])).write_text(header + content, encoding="utf-8")
+    s["fetched"] = True
+    s["raw_file"] = _raw_name(s["id"])
+    s["content_chars"] = len(content)
+    s["images"] = extract_images(content)
+    s["fetch_error"] = None
+
+
+def run_batch(plan: Dict[str, Any], run_dir: Path, client: "Client", max_fetches: Optional[int] = None,
+              workers: int = 4, log=print) -> Dict[str, Any]:
+    """Run every plan query, dedupe by URL, fetch the best pages, write sources.json + raw/.
+
+    Re-running into the same run_dir adds to it (used for the reviewer's follow-up round):
+    existing source ids stay stable and queries already run are skipped.
+    """
+    import concurrent.futures as cf
+
+    run_dir = Path(run_dir)
+    (run_dir / "raw").mkdir(parents=True, exist_ok=True)
+    out_path = run_dir / "sources.json"
+    state = read_json(out_path, "sources file") if out_path.exists() else {}
+    sources = state.get("sources") or []
+    searches = state.get("searches") or []
+    billing = state.get("billing") or {"search_requests": 0, "fetch_requests": 0}
+    round_no = max([s.get("round", 1) for s in searches] or [0]) + 1
+    question = plan.get("question") or state.get("question") or ""
+    done = {s["query"] for s in searches if not s.get("error")}
+    todo = [q for q in plan["queries"] if q["query"] not in done]
+    limit = max_fetches if max_fetches is not None else _to_int(plan.get("max_fetches"), 25)
+
+    log("Round %d: %d searches (%d skipped as already run), up to %d fetches."
+        % (round_no, len(todo), len(plan["queries"]) - len(todo), limit))
+
+    # 1. searches, in parallel under the throttle; results merged in plan order
+    results = [None] * len(todo)  # type: List[Any]
+    with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(client.search, q["query"], q["count"], question or None, None,
+                               q["need_content"]): i for i, q in enumerate(todo)}
+        try:
+            for fut in cf.as_completed(futures):
+                i = futures[fut]
+                try:
+                    results[i] = fut.result()
+                except (AuthError, BalanceError):
+                    raise
+                except DsrError as e:
+                    results[i] = e
+        except (AuthError, BalanceError):
+            for f in futures:
+                f.cancel()
+            raise
+    hits = []
+    for q, res in zip(todo, results):
+        entry = {"query": q["query"], "count": q["count"], "sub_question": q["sub_question"], "round": round_no}
+        if isinstance(res, Exception):
+            entry["results"] = 0
+            entry["error"] = redact(res, client.key)
+            log("  ! search failed: %s (%s)" % (q["query"], entry["error"]))
+        else:
+            entry["results"] = len(res)
+            entry["error"] = None
+            hits.extend((r, q) for r in res)
+        searches.append(entry)
+    new_sources = add_hits(sources, hits)
+
+    # 2. pages whose content came with the search need no fetch
+    for s in sources:
+        content = s.pop("_content", None)
+        if content and not s.get("fetched"):
+            _write_raw(run_dir, s, s["title"], content)
+
+    # 3. fetches: explicit URLs first, then the best-ranked sources
+    explicit = []
+    if plan.get("fetch_urls"):
+        add_hits(sources, [(normalize_result({"url": u, "title": u}), {"query": "(fetch_urls)", "sub_question": None})
+                           for u in plan["fetch_urls"]])
+        keys = {normalize_url(u) for u in plan["fetch_urls"]}
+        explicit = [s for s in sources if normalize_url(s["url"]) in keys and not s["fetched"]]
+    to_fetch = explicit + [s for s in pick_fetches(sources, limit) if s not in explicit]
+
+    def do_fetch(s):
+        return s, client.fetch(s["url"])
+
+    fetched = failed = 0
+    with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+        for fut in cf.as_completed([pool.submit(do_fetch, s) for s in to_fetch]):
+            try:
+                s, page = fut.result()
+            except (AuthError, BalanceError):
+                raise
+            except DsrError as e:
+                failed += 1
+                log("  ! fetch failed: %s" % redact(e, client.key))
+                continue
+            if not page["content"]:
+                s["fetch_error"] = "empty page"
+                failed += 1
+                continue
+            if not s["title"] or s["title"] == s["url"]:
+                s["title"] = page["title"] or s["title"]
+            _write_raw(run_dir, s, page["title"], page["content"])
+            if page.get("image"):
+                s["images"].insert(0, {"url": page["image"], "alt": "og:image"})
+            fetched += 1
+    for s in to_fetch:  # record failures by id (futures don't carry s on error)
+        if not s["fetched"] and not s["fetch_error"]:
+            s["fetch_error"] = "fetch failed"
+
+    billing["search_requests"] += client.billed["search"]
+    billing["fetch_requests"] += client.billed["fetch"]
+    client.billed = {"search": 0, "fetch": 0}
+    billing["estimated_usd"] = round((billing["search_requests"] + billing["fetch_requests"]) * PRICE_PER_REQUEST, 5)
+
+    sub_questions = state.get("sub_questions") or []
+    known = {sq.get("id") for sq in sub_questions if isinstance(sq, dict)}
+    for sq in plan.get("sub_questions") or []:
+        if isinstance(sq, dict) and sq.get("id") not in known:
+            sub_questions.append(sq)
+
+    write_json(out_path, {
+        "version": 1,
+        "question": question,
+        "sub_questions": sub_questions,
+        "updated_at": now_iso(),
+        "billing": billing,
+        "searches": searches,
+        "sources": sources,
+    })
+    summary = {
+        "round": round_no,
+        "searches_ok": sum(1 for s in searches if s["round"] == round_no and not s["error"]),
+        "searches_failed": sum(1 for s in searches if s["round"] == round_no and s["error"]),
+        "new_sources": new_sources,
+        "total_sources": len(sources),
+        "fetched": fetched,
+        "fetch_failed": failed,
+        "total_fetched": sum(1 for s in sources if s["fetched"]),
+        "estimated_usd": billing["estimated_usd"],
+        "sources_file": str(out_path),
+    }
+    log("Done: %(searches_ok)d searches ok, %(searches_failed)d failed; %(new_sources)d new sources "
+        "(%(total_sources)d total); fetched %(fetched)d pages, %(fetch_failed)d failed. "
+        "Estimated cost so far: $%(estimated_usd).4f" % summary)
+    log("Wrote %s and %s" % (out_path, run_dir / "raw"))
+    return summary
+
+
 # ---------------------------------------------------------------------------
 # Commands
 
@@ -560,6 +873,16 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_batch(args: argparse.Namespace) -> int:
+    plan = load_plan(Path(args.plan))
+    client = Client(require_key())
+    run_batch(plan, Path(args.out), client, max_fetches=args.max_fetches,
+              log=lambda m: print(m, file=sys.stderr))
+    if args.json:
+        print_json(read_json(Path(args.out) / "sources.json", "sources file"))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="dsr.py", description="Web research with DeepSeek Search & Fetch.")
     p.add_argument("--version", action="version", version="%(prog)s " + __version__)
@@ -591,6 +914,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("url")
     s.add_argument("--json", action="store_true", help="machine-readable output")
     s.set_defaults(func=cmd_fetch)
+
+    s = sub.add_parser("batch", help="run a research plan: searches + fetches into a run dir")
+    s.add_argument("plan", help="plan.json (see references/advanced-mode.md)")
+    s.add_argument("--out", required=True, help="run directory, e.g. research/<slug>-<YYYYMMDD-HHMM>")
+    s.add_argument("--max-fetches", type=int, help="cap on pages to fetch (default: plan max_fetches or 25)")
+    s.add_argument("--json", action="store_true", help="print sources.json when done")
+    s.set_defaults(func=cmd_batch)
 
     return p
 
