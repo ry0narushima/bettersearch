@@ -1,0 +1,16 @@
+# Research runs (may contain fetched web content)
+research/
+
+# Secrets — never commit keys
+*.env
+.env
+config.json
+
+# Python
+__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
